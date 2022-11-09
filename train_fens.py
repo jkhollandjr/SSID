@@ -24,9 +24,10 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='/home/james/Desktop/research/outside_repos/DCF/original/')
-    parser.add_argument('--test', required=False, default='/home/james/Desktop/research/outside_repos/DCF/original/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="/home/james/Desktop/research/outside_repos/DCF/src/DCF/models/original_")
+    parser.add_argument('--input', required=False, default='original/')
+    parser.add_argument('--test', required=False, default='original/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="original_")
+    parser.add_argument('--loss_type', type=int, required=False, default=2, help='Type of triplet loss: (0) Original semi-hard(1) All traces (2) Online semi-hard')
     args = parser.parse_args()
     return args
 
@@ -331,19 +332,39 @@ if __name__ == '__main__':
     # customized loss
     # alpha_value = 0.05
     def cosine_triplet_loss(X):
-        print(X)
-        print(tf.shape(X))
-        print('--------------------')
         _alpha = alpha_value
         positive_sim, negative_sim = X
 
         losses = K.maximum(0.0, negative_sim - positive_sim + _alpha)
-        # if similarity is based on the distance functions, use below
-        # losses = K.maximum(0.0, positive_sim - negative_sim + _alpha)
+
         return K.mean(losses)
 
+    def online_triplet_loss(X):
+        a, p, n = X
 
-    loss = Lambda(cosine_triplet_loss, output_shape=(1,))([pos_sim, neg_sim])
+        pos_sim = Dot(axes=-1, normalize=True)([a, p])
+        neg_sim = Dot(axes=-1, normalize=True)([a, n])
+
+        pos_sim = tf.reshape(pos_sim, [-1])
+        neg_sim = tf.reshape(neg_sim, [-1])
+
+        triplet_loss = K.maximum(0.0, neg_sim - pos_sim + alpha_value)
+
+        lower_tensor = tf.greater(triplet_loss, 1e-10)
+        upper_tensor = tf.less(triplet_loss, alpha_value)
+        in_range = tf.logical_and(lower_tensor, upper_tensor)
+
+        mask = tf.cast(lower_tensor, tf.float32)
+        triplet_loss = tf.multiply(mask, triplet_loss)
+
+        num_valid_triplets = tf.reduce_sum(mask)
+
+        return tf.reduce_sum(triplet_loss) / (num_valid_triplets + 1e-10)
+
+    if(args.loss_type != 2):
+        loss = Lambda(cosine_triplet_loss, output_shape=(1,))([pos_sim, neg_sim])
+    else:
+        loss = Lambda(online_triplet_loss, output_shape=(1,))([a, p, n])
 
     model_triplet = Model(
         inputs=[anchor, positive, negative],
@@ -359,7 +380,6 @@ if __name__ == '__main__':
     model_triplet.compile(loss=identity_loss, optimizer=opt)
 
     batch_size = 128  # batch_size_value
-
 
     def intersect(a, b):
         return list(set(a) & set(b))
@@ -435,7 +455,7 @@ if __name__ == '__main__':
             self.num_samples = Xa_train.shape[0]
             self.neg_traces_idx = neg_traces_train_idx
 
-            if conv1:
+            if args.loss_type == 0 and conv1:
                 self.similarities = build_similarities(conv1, conv2, self.Xa_all,
                                                        self.Xp_all)  # build_similarities(conv, self.traces) # compute all similarities including cross pairs
             else:
