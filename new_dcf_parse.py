@@ -1,10 +1,11 @@
-import numpy as np
+'''Creates pickle files that contain the partial traces for each window'''
 import pickle
 import os
+import argparse
+import numpy as np
+
 def convert_to_bursts(sequence):
-    """
-    converts a packet sequence into a burst sequence
-    """
+    '''Converts a packet sequence into a burst sequence'''
     bursts = [[0.0, 0, sequence[0][2]]]
     for packet in sequence:
         if packet[2] == bursts[-1][2]:
@@ -14,9 +15,7 @@ def convert_to_bursts(sequence):
     return bursts
 
 def load_vf_burst(directory, delimiter='\t', file_split="-", max_length=None):
-    """
-    Load data from ascii files
-    """
+    '''Load data from ascii files'''
     X, X_ibt, y = [], [], []
     y_count = dict()
     for root, dirs, files in os.walk(directory):
@@ -25,15 +24,13 @@ def load_vf_burst(directory, delimiter='\t', file_split="-", max_length=None):
             #if len(X) > 2000: break
             #print('len(X)', len(X))
             try:
-                # trace_class is derived from file name (eg. 'C-n' where C is class and n is instance)
+                # trace_class is derived from file name (eg. class-instance)
                 trace_class = int(fname.split(file_split)[0])
-                #if trace_class >= 10: continue
                 #count number of instances of given class
                 y_count[trace_class] = y_count.get(trace_class, 0) + 1
 
                 # build direction sequence
                 sequence = load_trace(os.path.join(root, fname), seperator=delimiter)
-
 
                 if sequence is not None and len(sequence) > 50:
 
@@ -54,10 +51,8 @@ def load_vf_burst(directory, delimiter='\t', file_split="-", max_length=None):
                     X_ibt.append(inter_time_sequence)
                     y.append(trace_class)
 
-
             except Exception as e:
                 print(e)
-
 
     # wrap as numpy array
     X, X_ibt, Y = np.array(X), np.array(X_ibt), np.array(y)
@@ -72,32 +67,27 @@ def load_vf_burst(directory, delimiter='\t', file_split="-", max_length=None):
     np.savez('vf_burst_new_'+str(max_length)+'.npz', size=X, ibt=X_ibt, label=Y)
     return X, X_ibt, Y
 
-def parse_csv(csv_path, interval,file_names):#option: 'sonly', 'tonly', 'both'
-    HERE_PATH = csv_path+'inflow'
-    THERE_PATH = csv_path+'outflow'
-    print(HERE_PATH,THERE_PATH,interval)
+def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
+    '''Open csv and read/store trace'''
+    here_path = csv_path+'inflow'
+    there_path = csv_path+'outflow'
+    print(here_path, there_path, interval)
     #here
-    here=[]
-    there=[]
-    here_len=[]
-    there_len=[]
-    h_cnt = 0
-    t_cnt = 0
+    here = []
+    there = []
+    here_len = []
+    there_len = []
     flow_cnt = 0
     final_names = []
-    #for txt_file in os.listdir(HERE_PATH):
-    #    file_names.append(txt_file)
-
 
     for i in range(len(file_names)):
         here_seq = []
         there_seq = []
         num_here_big_pkt_cnt = []
         num_there_big_pkt_cnt = []
-        with open(HERE_PATH+'/'+file_names[i]) as f:
-            #print(HERE_PATH+'/'+txt_file)
+        with open(here_path + '/' + file_names[i]) as f:
             pre_h_time = 0.0
-            lines=f.readlines()
+            lines = f.readlines()
             if len(lines) == 0:
                 continue
             #print('befoer filter',len(lines))
@@ -105,8 +95,8 @@ def parse_csv(csv_path, interval,file_names):#option: 'sonly', 'tonly', 'both'
             num_here_big_pkt = 0
             for line in lines:
                 time_size = []
-                time=float(line.split('\t')[0])
-                size =int(float(line.split ('\t')[1].strip()))
+                time = float(line.split('\t')[0])
+                size = int(float(line.split('\t')[1].strip()))
                 if size > 0:
                     ipd = time - pre_h_time
                 else:
@@ -115,33 +105,32 @@ def parse_csv(csv_path, interval,file_names):#option: 'sonly', 'tonly', 'both'
                     break
                 if float(time) < interval[0]:
                     continue
-                if abs(size) > 0:# ignore ack packets
+                if abs(size) > 512:# ignore ack packets
                     if (pre_h_time != 0) and (ipd == 0):
                         big_pkt.append(size)
                         continue
-                    if len(big_pkt)!=0:
-                        last_pkt=here_seq.pop()
+                    if len(big_pkt) != 0:
+                        last_pkt = here_seq.pop()
                         here_seq.append({"ipd": last_pkt["ipd"], "size": sum(big_pkt)+big_pkt[0]})
                         big_pkt = []
                         num_here_big_pkt += 1
-                    time_size.append (ipd)
+                    time_size.append(ipd)
                     time_size.append(size)
-                    time_size = np.array (time_size)
-                    here_seq.append ({"ipd": time_size[0], "size": time_size[1]})
+                    time_size = np.array(time_size)
+                    here_seq.append({"ipd": time_size[0], "size": time_size[1]})
                     pre_h_time = time
-        #print('after filter',len (here_seq))
 
-        with open (THERE_PATH + '/' + file_names[i]) as f:
+        with open(there_path + '/' + file_names[i]) as f:
             pre_h_time = 0.0
-            lines = f.readlines ()
-            if len (lines) == 0:
+            lines = f.readlines()
+            if len(lines) == 0:
                 continue
             big_pkt = []
             num_there_big_pkt = 0
             for line in lines:
                 time_size = []
-                time = float (line.split ('\t')[0])
-                size = int (float(line.split ('\t')[1].strip()))
+                time = float(line.split('\t')[0])
+                size = int(float(line.split('\t')[1].strip()))
                 if size > 0:
                     ipd = time - pre_h_time
                 else:
@@ -150,66 +139,57 @@ def parse_csv(csv_path, interval,file_names):#option: 'sonly', 'tonly', 'both'
                     break
                 if float(time) < interval[0]:
                     continue
-                if abs (size) > 66:  # ignore ack packets
+                if abs(size) > 66:  # ignore ack packets
                     if (pre_h_time != 0) and (ipd == 0):
-                        big_pkt.append (size)
+                        big_pkt.append(size)
                         continue
-                    if len (big_pkt) != 0:
-                        last_pkt = there_seq.pop ()
-                        there_seq.append ({"ipd": last_pkt["ipd"], "size": sum (big_pkt)+big_pkt[0]})
+                    if len(big_pkt) != 0:
+                        last_pkt = there_seq.pop()
+                        there_seq.append({"ipd": last_pkt["ipd"], "size": sum(big_pkt) + big_pkt[0]})
                         big_pkt = []
                         num_there_big_pkt += 1
 
-                    time_size.append (ipd)
-                    time_size.append (size)
-                    time_size = np.array (time_size)
-                    there_seq.append ({"ipd": time_size[0], "size": time_size[1]})
+                    time_size.append(ipd)
+                    time_size.append(size)
+                    time_size = np.array(time_size)
+                    there_seq.append({"ipd": time_size[0], "size": time_size[1]})
                     pre_h_time = time
 
-        #print (len (there_seq))
-        if (len(here_seq)!=0) and (len(there_seq)!=0):
-            here_len.append (len (here_seq))
-            num_here_big_pkt_cnt.append (num_here_big_pkt)
-            there_len.append (len (there_seq))
-            num_there_big_pkt_cnt.append (num_there_big_pkt)
-            here.append (here_seq)
-            there.append (there_seq)
+        if(len(here_seq) != 0) and (len(there_seq) != 0):
+            here_len.append(len(here_seq))
+            num_here_big_pkt_cnt.append(num_here_big_pkt)
+            there_len.append(len(there_seq))
+            num_there_big_pkt_cnt.append(num_there_big_pkt)
+            here.append(here_seq)
+            there.append(there_seq)
             final_names.append(file_names[i])
             flow_cnt += 1
-        #h_cnt += len (here_seq)
-        #t_cnt += len (there_seq)
 
-    print(interval,'mean',np.mean(np.array(here_len)), np.mean(np.array(there_len)),np.mean(num_here_big_pkt_cnt),np.mean(num_there_big_pkt_cnt),flow_cnt)
-    print (interval,'median', np.median (np.array (here_len)), np.median (np.array (there_len)),np.median(num_here_big_pkt_cnt),np.median(num_there_big_pkt_cnt),flow_cnt)
+    print(interval, 'mean', np.mean(np.array(here_len)), np.mean(np.array(there_len)), np.mean(num_here_big_pkt_cnt), np.mean(num_there_big_pkt_cnt), flow_cnt)
+    print(interval, 'median', np.median(np.array(here_len)), np.median(np.array(there_len)), np.median(num_here_big_pkt_cnt), np.median(num_there_big_pkt_cnt), flow_cnt)
     return np.array(here), np.array(there), np.array(final_names)
 
 def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interval, num_windows, addnum):
+    '''Write pickle files for each window'''
     windows_seq = []
     file_names = []
-    for txt_file in open(file_list,'r').readlines():
+    for txt_file in open(file_list, 'r').readlines():
         file_names.append(txt_file.strip())
     for win in range(num_windows):
-        here, there, labels = parse_csv(csv_path, [win*addnum,win*addnum+interval],file_names)
+        here, there, labels = parse_csv(csv_path, [win*addnum, win*addnum+interval], file_names)
         windows_seq.append({"tor": here, "exit": there, "label": labels})
-        #np.savez_compressed('/project/hoppernj/research/seoh/new_dcf_data/new_overlap_interval' + str(interval) + '_win' + str(win) + '_addn' + str(addnum) + '.npz',
-        #         tor=here, exit=there)
 
-        with open (prefix_pickle_output + str(interval) + '_win' + str(win) + '_addn' + str(addnum) + '_w_superpkt.pickle', 'wb') as handle:
-            pickle.dump ({'tor':here, 'exit':there, "label": labels}, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        #with open ('filename.pickle', 'rb') as handle:
-        #    b = pickle.load (handle)
-        #d2=np.load("d1.npy")
-        #f = gzip.GzipFile ('/project/hoppernj/research/seoh/new_dcf_data/new_overlap_interval' + str(interval) + '_win' + str(win) + '_addn' + str(addnum) + '.npy.gz', "w")
-        #np.save(f,d1)
-    #windows_seq = np.array(windows_seq)
+        with open(prefix_pickle_output + str(interval) + '_win' + str(win) + '_addn' + str(addnum) + '_w_superpkt.pickle', 'wb') as handle:
+            pickle.dump({'tor':here, 'exit':there, "label": labels}, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    #return windows_seq
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_20000/')
+    parser.add_argument('--file_list_path', required=False, default='output.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='original/')
 
-data_path = '/home/james/Desktop/research/outside_repos/DCF/CrawlE_Proc_20000/'
-file_list_path = '/home/james/Desktop/research/outside_repos/DCF/src/DCF/original.txt'
-prefix_pickle_output = '/home/james/Desktop/research/outside_repos/DCF/original/'
-create_overlap_window_csv(data_path, file_list_path, prefix_pickle_output, 5, 11, 2)
-create_overlap_window_csv(data_path, file_list_path, prefix_pickle_output, 4, 11, 2)
-create_overlap_window_csv(data_path, file_list_path, prefix_pickle_output, 3, 11, 2)
-#create_overlap_window_csv(npz_path, 5, 11, 1)
-#create_overlap_window_csv(npz_path, 3, 11, 2)
+    args = parser.parse_args()
+
+    create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 5, 11, 2)
+    create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 4, 11, 2)
+    create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 3, 11, 2)
