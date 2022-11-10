@@ -25,7 +25,7 @@ parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
 parser.add_argument('-model1', default='models/smallest_0.002726607955992222_best_model1')
 parser.add_argument('-model2', default='models/smallest_0.002726607955992222_best_model2')
-parser.add_argument('-output', default="smallest.csv")
+parser.add_argument('-output', default="test_smallest.csv")
 args = parser.parse_args()
 
 def get_session(gpu_fraction=0.85):
@@ -47,7 +47,7 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
         t = similarity_threshold[tor_emb_index]
         constant_num = int(tor_emb_index * number_of_lines)
         for exit_emb_index in range(0, number_of_lines):
-            if (cosine_similarity_all_list[tor_emb_index][exit_emb_index] >= t):
+            if cosine_similarity_all_list[tor_emb_index][exit_emb_index] >= t:
                 single_output_l[constant_num + exit_emb_index] = single_output_l[constant_num + exit_emb_index] + 1
 
     if evaluating_window == last_window:
@@ -61,7 +61,7 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
         FP_overlap_first = 0
         FP_overlap_Second = 0
 
-        for tor_eval_index in range (0, tor_embs.shape[0]):
+        for tor_eval_index in range(0, tor_embs.shape[0]):
             for exit_eval_index in range(0, tor_embs.shape[0]):
                 cos_condithon_a = (tor_eval_index == exit_eval_index)
                 number_of_ones = (single_output_l[(tor_eval_index * (tor_embs.shape[0])) + exit_eval_index])
@@ -72,49 +72,49 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
                     TP = TP + 1
                 if (cos_condithon_a and cos_condition_c):
                     FN = FN + 1
-                if ((not (cos_condithon_a)) and cos_condition_b):
+                if (not (cos_condithon_a)) and cos_condition_b:
                     FP = FP + 1
-                if ((not (cos_condithon_a)) and cos_condition_c):
+                if (not (cos_condithon_a)) and cos_condition_c:
                     TN = TN + 1
 
         if (TP + FN) != 0:
-            TPR = (float) (TP) / (TP + FN)
+            TPR = float(TP) / (TP + FN)
         else:
             TPR = -1
 
         if (TN + FP) != 0:
-            TNR = (float) (TN) / (TN + FP)
+            TNR = float(TN) / (TN + FP)
         else:
             TNR = -1
 
         if (FP + TN) != 0:
-            FPR = (float) (FP) / (FP + TN)
+            FPR = float(FP) / (FP + TN)
         else:
             FPR = -1
 
         if (FN + TP) != 0:
-            FNR = (float) (FN) / (FN + TP)
+            FNR = float(FN) / (FN + TP)
         else:
             FNR = -1
 
         if (TP + TN + FP + FN) != 0:
-            ACC = (float) (TP + TN) / (TP + TN + FP + FN)
+            ACC = float(TP + TN) / (TP + TN + FP + FN)
         else:
             ACC = -1
 
         if (TP + FP) != 0:
-            PPV = (float) (TP) / (TP + FP)
+            PPV = float(TP) / (TP + FP)
         else:
             PPV = -1
 
         if (PPV + TPR) != 0:
-            F_ONE = (float) (PPV * TPR) / (PPV + TPR)
+            F_ONE = float(PPV * TPR) / (PPV + TPR)
         else:
             F_ONE = -1
 
         muti_output_list.append(TPR)
         muti_output_list.append(FPR)
-        muti_output_list.append(calculate_bdr (TPR, FPR))
+        muti_output_list.append(calculate_bdr(TPR, FPR))
         print(TPR, FPR, calculate_bdr(TPR, FPR))
 
     end_time = time.time()
@@ -132,42 +132,6 @@ def calculate_bdr(tpr, fpr):
         BDR = -1
     return BDR
 
-def preprocessing_new_test_data(win, number_of_interval):
-    npz_path = '../data/obfs_new/obfs4_new_interval' + str(number_of_interval) + '_win' + str (win) + '.npz'
-    np_array = np.load (npz_path, encoding='latin1', allow_pickle=True)
-    tor_seq = np_array["tor"]
-    exit_seq = np_array["exit"]
-    number_of_traces = tor_seq.shape[0]
-    print(number_of_traces)
-    print(type(tor_seq[0]))
-    print(len(tor_seq[0]))
-    print(tor_seq[0][1])
-    '''
-    [ [{'ipd': x, 'size': y},{}.....{}]
-      [{},{}.....{}]
-      [{},{}.....{}] ]
-    '''
-
-    for i in range (0, number_of_traces):
-        tor_seq[i] = [float (pair["ipd"]) * 1000.0 for pair in tor_seq[i]] + [float (pair["size"]) / 1000.0 for pair in
-                                                                              tor_seq[i]]
-        if len(tor_seq[i]) < (500 * 2):
-            tor_seq[i] = tor_seq[i] + ([0] * ((500 * 2) - (len (tor_seq[i]))))
-        elif len(tor_seq[i]) > (500 * 2):
-            tor_seq[i] = tor_seq[i][0:(500 * 2)]
-
-        exit_seq[i] = [float (pair["ipd"]) * 1000.0 for pair in exit_seq[i]] + [float (pair["size"]) / 1000.0 for pair
-                                                                                in exit_seq[i]]
-        if len(exit_seq[i]) < (800 * 2):
-            exit_seq[i] = exit_seq[i] + ([0] * ((800 * 2) - (len (exit_seq[i]))))
-        elif len(exit_seq[i]) > (800 * 2):
-            exit_seq[i] = exit_seq[i][0:(800 * 2)]
-
-    tor_test = np.reshape(np.array(list(tor_seq)), (2094, 1000, 1))
-    exit_test = np.reshape(np.array(list(exit_seq)), (2094, 1600, 1))
-    print (tor_test[0][1])
-    return (tor_test, exit_test)
-
 # Every tor flow will have a unique threshold
 def threshold_finder(input_similarity_list, curr_win, gen_ranks, thres_seed, use_global):
     output_shreshold_list = []
@@ -184,7 +148,7 @@ def threshold_finder(input_similarity_list, curr_win, gen_ranks, thres_seed, use
     return output_shreshold_list
 
 
-def eval_model(full_or_half, five_or_four, use_new_data, model1_path, model2_path, test_path, thr, use_global,
+def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, thr, use_global,
                use_softmax, muti_output_list, soft_muti_output_list):
     global total_time
     global total_emb
@@ -236,19 +200,16 @@ def eval_model(full_or_half, five_or_four, use_new_data, model1_path, model2_pat
     correlated_shreshold_value = five_or_four
     thres_seed = thr
 
-    for win in range (11):
-        print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ We are in window %d ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" % win)
-        pos_dist = []
-        neg_dist = []
+    for win in range(11):
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ We are in window %d ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" % win)
+
         # Get feature embeddings for each window
         # For example, test_data['tor'][0] means testing tor traffic in window1
         #              test_data['exit'][win] means testing exit traffic in window1
 
-        if use_new_data == 1:
-            (test_data_tor, test_data_exit) = preprocessing_new_test_data(win, 5)
-        elif use_new_data != 1:
-            test_data_tor = test_data['tor'][win][:full_or_half]
-            test_data_exit = test_data['exit'][win][:full_or_half]
+        test_data_tor = test_data['tor'][win][:full_or_half]
+        test_data_exit = test_data['exit'][win][:full_or_half]
+
         start_emd = time.time()
         tor_embs = tor_model.predict(test_data_tor)
         exit_embs = exit_model.predict(test_data_exit)
@@ -261,10 +222,10 @@ def eval_model(full_or_half, five_or_four, use_new_data, model1_path, model2_pat
 
         if win == 0:
             # print("init the final cosine similarity output now.....")
-            ini_cosine_output (single_output, tor_embs.shape[0])
+            ini_cosine_output(single_output, tor_embs.shape[0])
         #print("getting cosine similarity results......")
         start_cos = time.time()
-        cosine_similarity_table = cosine_similarity (tor_embs, exit_embs)
+        cosine_similarity_table = cosine_similarity(tor_embs, exit_embs)
         end_cos = time.time()
         # print('[#####] Time for cosine: ', end_cos - start_cos, 'sec')
         total_cos = total_cos + (end_cos - start_cos)
@@ -272,9 +233,7 @@ def eval_model(full_or_half, five_or_four, use_new_data, model1_path, model2_pat
         threshold_result = threshold_finder(cosine_similarity_table, win, 0, thres_seed, use_global)
 
         if win in activated_windows:
-            Cosine_Similarity_eval(tor_embs, exit_embs, threshold_result, single_output, win, last_activated_window,
-                                    correlated_shreshold_value, cosine_similarity_table, muti_output_list)
-
+            Cosine_Similarity_eval(tor_embs, exit_embs, threshold_result, single_output, win, last_activated_window, correlated_shreshold_value, cosine_similarity_table, muti_output_list)
 
 
 if __name__ == "__main__":
@@ -302,8 +261,7 @@ if __name__ == "__main__":
     use_new_data = 0
 
     for thr in rank_thr_list:
-        eval_model(flow_length, five_or_four, use_new_data, model1_path, model2_path, test_path, thr, use_global,
-                    use_softmax, rank_multi_output[epoch_index], [])
+        eval_model(flow_length, five_or_four, model1_path, model2_path, test_path, thr, use_global, use_softmax, rank_multi_output[epoch_index], [])
         epoch_index = epoch_index + 1
 
     with open(args.output, "w", newline="") as rank_f:
@@ -314,6 +272,3 @@ if __name__ == "__main__":
     print("total_cos: " + str(total_cos))
     print("total_vot: " + str(total_vot))
     print("total_emb: " + str(total_emb))
-
-
-
