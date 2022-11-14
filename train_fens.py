@@ -24,10 +24,13 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='original/')
-    parser.add_argument('--test', required=False, default='original/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="original_")
+    parser.add_argument('--input', required=False, default='smallest/')
+    parser.add_argument('--test', required=False, default='smallest/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="smallest_")
     parser.add_argument('--loss_type', type=int, required=False, default=2, help='Type of triplet loss: (0) Original semi-hard(1) All traces (2) Online semi-hard')
+    parser.add_argument('--load_model1', required=False, default = '')
+    parser.add_argument('--load_model2', required=False, default='')
+    parser.add_argument('--test_set_size', required=False, type=int, default=2000)
     args = parser.parse_args()
     return args
 
@@ -37,7 +40,7 @@ def get_session(gpu_fraction=0.85):
 
 def load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_c, model_gb):
     train_index = circuit_labels[circuit_labels%2 == 1]
-    test_index = circuit_labels[circuit_labels%2 == 0][:2093]
+    test_index = circuit_labels[circuit_labels%2 == 0][:args.test_set_size]
     train_window1 = []
     train_window2 = []
     test_window1 = []
@@ -222,6 +225,7 @@ if __name__ == '__main__':
                 test_c = np.array(test_c).astype('int')
                 train_c = np.array(train_c).astype('int')
         train_set_x1, train_set_x2, test_set_x1, test_set_x2, valid_set_x1, valid_set_x2 = load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_c, model_gb)
+        print(test_set_x1[0].shape)
 
         temp_test1 = []
         temp_test2 = []
@@ -291,6 +295,7 @@ if __name__ == '__main__':
         test_windows2.append(np.array(temp_test2))
 
 
+    #saving test set for eval_dcf.py
     np.savez_compressed(args.test+str(interval)+'_test' + str(num_windows) + 'addn'+str(addn)+'_w_superpkt.npz', tor=np.array(test_windows1), exit=np.array(test_windows2))
 
     train_windows1 = np.array(train_windows1)
@@ -317,6 +322,15 @@ if __name__ == '__main__':
     shared_model1 = create_model(input_shape=input_shape1, emb_size=64, model_name='tor')  ##
     shared_model2 = create_model(input_shape=input_shape2, emb_size=64, model_name='exit')  ##
 
+    if(args.load_model1 != ''):
+        print("LOADING MODEL 1")
+        shared_model1 = tf.keras.models.load_model(args.load_model1)
+
+    if(args.load_model2 != ''):
+        print("LOADING MODEL 2")
+        shared_model2 = tf.keras.models.load_model(args.load_model2)
+ 
+
     anchor = Input(input_shape1, name='anchor')
     positive = Input(input_shape2, name='positive')
     negative = Input(input_shape2, name='negative')
@@ -324,7 +338,6 @@ if __name__ == '__main__':
     a = shared_model1(anchor)
     p = shared_model2(positive)
     n = shared_model2(negative)
-
 
     pos_sim = Dot(axes=-1, normalize=True)([a, p])
     neg_sim = Dot(axes=-1, normalize=True)([a, n])
@@ -373,7 +386,6 @@ if __name__ == '__main__':
     opt = optimizers.SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
 
     def identity_loss(y_true, y_pred):
-        print(y_pred)
         return K.mean(y_pred - 0 * y_true)
 
 
@@ -500,16 +512,12 @@ if __name__ == '__main__':
         loss = logs['loss']
 
         if loss < best_loss:
-            print("loss is improved from {} to {}. save the model".format(str(best_loss),
-                                                                          str(loss)))
+            print("loss is improved from {} to {}. save the model".format(str(best_loss), str(loss)))
 
             best_loss = loss
-            shared_model1.save_weights( 
-                args.model + str(num_windows) + "_alt"+str(interval)+ '_addn'+str(addn)+"_model1_w_superpkt.h5")
-            shared_model2.save_weights( 
-                args.model + str(num_windows) + "_alt"+str(interval)+'_addn'+str(addn)+"_model2_w_superpkt.h5")
-            tf.keras.models.save_model(shared_model1, args.model + str(loss) + "_best_model1.h5")
-            tf.keras.models.save_model(shared_model2, args.model + str(loss) + "_best_model2.h5")
+
+            shared_model1.save('models/' + args.model + "model1_" + str(epoch) + ".h5")
+            shared_model2.save('models/' + args.model + "model2_" + str(epoch) + ".h5")
         else:
             print("loss is not improved from {}.".format(str(best_loss)))
 

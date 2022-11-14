@@ -60,9 +60,9 @@ def create_overlap_window_csv(csv_path, out_path, threshold, interval, num_windo
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_20000/')
-    parser.add_argument('--output_path', required=False, default='output.txt')
-    parser.add_argument('--threshold', required=False, default=20)
+    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Smallest/')
+    parser.add_argument('--output_path', required=False, default='smallest_3000.txt')
+    parser.add_argument('--threshold', type=int, required=False, default=20)
 
     args = parser.parse_args()
 
