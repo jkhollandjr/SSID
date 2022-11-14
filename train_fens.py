@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import sys
 import argparse
 import random
@@ -30,7 +28,7 @@ def get_params():
     parser.add_argument('--loss_type', type=int, required=False, default=2, help='Type of triplet loss: (0) Original semi-hard(1) All traces (2) Online semi-hard')
     parser.add_argument('--load_model1', required=False, default = '')
     parser.add_argument('--load_model2', required=False, default='')
-    parser.add_argument('--test_set_size', required=False, type=int, default=2000)
+    parser.add_argument('--test_set_size', required=False, type=int, default=1000)
     args = parser.parse_args()
     return args
 
@@ -213,7 +211,7 @@ if __name__ == '__main__':
             if window_index == 0:
                 test_c = []
                 train_c = []
-                sum_ins = 2093
+                sum_ins = args.test_set_size
                 keys = list(circuit.keys())
                 random.shuffle(keys)
                 for key in keys:
@@ -225,7 +223,6 @@ if __name__ == '__main__':
                 test_c = np.array(test_c).astype('int')
                 train_c = np.array(train_c).astype('int')
         train_set_x1, train_set_x2, test_set_x1, test_set_x2, valid_set_x1, valid_set_x2 = load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_c, model_gb)
-        print(test_set_x1[0].shape)
 
         temp_test1 = []
         temp_test2 = []
