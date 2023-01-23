@@ -19,13 +19,13 @@ total_vot = 0
 total_cos = 0
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-test', default='smallest/5_test11addn2_w_superpkt.npz')
-parser.add_argument('-flow', default=2094)
+parser.add_argument('-test', default='original_minus_one/5_test11addn2_w_superpkt.npz')
+parser.add_argument('-flow', default=1000)
 parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
-parser.add_argument('-model1', default='models/smallest_0.002726607955992222_best_model1')
-parser.add_argument('-model2', default='models/smallest_0.002726607955992222_best_model2')
-parser.add_argument('-output', default="test_smallest.csv")
+parser.add_argument('-model1', default='models/original_model1_0.001711217570118606')
+parser.add_argument('-model2', default='models/original_model2_0.001711217570118606')
+parser.add_argument('-output', default="original.csv")
 args = parser.parse_args()
 
 def get_session(gpu_fraction=0.85):
@@ -167,17 +167,10 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     # load triplet models for tor and exit traffic
     from tensorflow import keras
     
-    #tor_model = keras.models.load_model(model1_path + ".h5")
-    #exit_model = keras.models.load_model(model2_path + ".h5")
-    #tor_model = tf.keras.models.load_model('models/test_detorrent_detorrent_best_model1.h5')
-    #exit_model = tf.keras.models.load_model('models/test_detorrent_detorrent_best_model2.h5')
     tor_model = tf.keras.models.load_model(model1_path + ".h5")
     exit_model = tf.keras.models.load_model(model2_path + ".h5")
     tor_model.compile()
     exit_model.compile()
-    #tor_model.load_weights(model1_path + ".h5")
-    #exit_model.load_weights(model2_path + ".h5")
-    print("DONE LOADING WEIGHTS")
 
     # print('Get logits for 5 windows')
 

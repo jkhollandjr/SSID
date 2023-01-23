@@ -185,11 +185,9 @@ def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interva
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', required=False, default='CrawlE_Proc_20000/')
-    parser.add_argument('--file_list_path', required=False, default='output.txt')
-    parser.add_argument('--prefix_pickle_output', required=False, default='original/')
+    parser.add_argument('--file_list_path', required=False, default='original_altered.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='original_altered/')
 
     args = parser.parse_args()
 
     create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 5, 11, 2)
-    create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 4, 11, 2)
-    create_overlap_window_csv(args.data_path, args.file_list_path, args.prefix_pickle_output, 3, 11, 2)
