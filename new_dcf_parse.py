@@ -14,59 +14,6 @@ def convert_to_bursts(sequence):
             bursts.append([packet[0], packet[1], packet[2]])
     return bursts
 
-def load_vf_burst(directory, delimiter='\t', file_split="-", max_length=None):
-    '''Load data from ascii files'''
-    X, X_ibt, y = [], [], []
-    y_count = dict()
-    for root, dirs, files in os.walk(directory):
-        print(len(files))
-        for fname in files:
-            #if len(X) > 2000: break
-            #print('len(X)', len(X))
-            try:
-                # trace_class is derived from file name (eg. class-instance)
-                trace_class = int(fname.split(file_split)[0])
-                #count number of instances of given class
-                y_count[trace_class] = y_count.get(trace_class, 0) + 1
-
-                # build direction sequence
-                sequence = load_trace(os.path.join(root, fname), seperator=delimiter)
-
-                if sequence is not None and len(sequence) > 50:
-
-                    # adapt packet sequence into burst sequence
-                    origin_sequence = convert_to_bursts(sequence)
-
-                    sequence = [p[1]*p[2] for p in origin_sequence]
-                    time_sequence = [p[0] for p in origin_sequence]
-                    inter_time_sequence = np.diff(np.array(time_sequence))
-
-                    # add sequence and label
-                    sequence = np.array(sequence)
-                    inter_time_sequence = np.array(inter_time_sequence)
-                    if max_length is not None:
-                        sequence.resize((max_length, 1))
-                        inter_time_sequence.resize((max_length, 1))
-                    X.append(sequence)
-                    X_ibt.append(inter_time_sequence)
-                    y.append(trace_class)
-
-            except Exception as e:
-                print(e)
-
-    # wrap as numpy array
-    X, X_ibt, Y = np.array(X), np.array(X_ibt), np.array(y)
-    # rescaling X to [-1,1]
-    #X = ((X+1249.)/1742.)*2-1
-    # shuffle
-    s = np.arange(Y.shape[0])
-    np.random.seed(0)
-    np.random.shuffle(s)
-    #m = len(s) * (5/6) # for train
-    X, X_ibt, Y = X[s], X_ibt[s], Y[s]
-    np.savez('vf_burst_new_'+str(max_length)+'.npz', size=X, ibt=X_ibt, label=Y)
-    return X, X_ibt, Y
-
 def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
     '''Open csv and read/store trace'''
     here_path = csv_path+'inflow'
@@ -155,7 +102,7 @@ def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
                     there_seq.append({"ipd": time_size[0], "size": time_size[1]})
                     pre_h_time = time
 
-        if(len(here_seq) != 0) and (len(there_seq) != 0):
+        if(len(here_seq) > 0) and (len(there_seq) > 0):
             here_len.append(len(here_seq))
             num_here_big_pkt_cnt.append(num_here_big_pkt)
             there_len.append(len(there_seq))
@@ -184,9 +131,9 @@ def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interva
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_20000/')
-    parser.add_argument('--file_list_path', required=False, default='original_altered.txt')
-    parser.add_argument('--prefix_pickle_output', required=False, default='original_altered/')
+    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Cutoff/')
+    parser.add_argument('--file_list_path', required=False, default='original_cutoff.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='original_cutoff/')
 
     args = parser.parse_args()
 

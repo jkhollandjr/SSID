@@ -22,9 +22,9 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='original/')
-    parser.add_argument('--test', required=False, default='original/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="original_")
+    parser.add_argument('--input', required=False, default='original_cutoff/')
+    parser.add_argument('--test', required=False, default='original_cutoff/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="cutoff_")
     parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard(1) All traces (2) Online semi-hard')
     parser.add_argument('--load_model1', required=False, default = '')
     parser.add_argument('--load_model2', required=False, default='')
@@ -118,6 +118,7 @@ def load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_
         window_exit_ipd = new_window_exit_ipd
         print('window_tor_ipd', window_tor_ipd[10][:10])
         print('window_exit_ipd', window_exit_ipd[10][:10])
+
 
         if model_gb == 'cnn1d':
             for i in range(len(window_tor_ipd)):

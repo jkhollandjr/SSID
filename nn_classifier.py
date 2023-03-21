@@ -6,11 +6,20 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 device = torch.device("cuda")
+'''
 train_dataset = np.load('similarity_train.npy')
 train_labels = np.load('labels_train.npy')
 
 test_dataset = np.load('similarity_test.npy')
 test_labels = np.load('labels_test.npy')
+'''
+train_dataset = np.load('dist_train_shortened.npy')
+train_dataset = train_dataset.reshape(1000000, 11)
+train_labels = np.load('dist_labels_train_shortened.npy')
+
+test_dataset = np.load('dist_test_shortened.npy')
+test_dataset = test_dataset.reshape(1000000, 11)
+test_labels = np.load('dist_labels_train_shortened.npy')
 
 class BinaryDataset(Dataset):
     def __init__(self, X, y, device):
@@ -36,15 +45,23 @@ test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 class BinaryClassifier(nn.Module):
     def __init__(self):
         super(BinaryClassifier, self).__init__()
-        self.fc1 = nn.Linear(11, 32)
-        self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, 32)
+        self.fc1 = nn.Linear(11, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 32)
         self.fc4 = nn.Linear(32, 1)
 
+        self.bn1 = nn.BatchNorm1d(128)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(32)
+
+        self.dropout1 = nn.Dropout(.1)
+        self.dropout2 = nn.Dropout(.1)
+        self.dropout3 = nn.Dropout(.1)
+
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
+        x = self.dropout1(F.relu(self.bn1(self.fc1(x))))
+        x = self.dropout2(F.relu(self.bn2(self.fc2(x))))
+        x = self.dropout3(F.relu(F.relu(self.bn3(self.fc3(x)))))
         x = self.fc4(x)
         return x
 
@@ -53,7 +70,8 @@ model = BinaryClassifier()
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
-for epoch in range(20):
+for epoch in range(10):
+    print(epoch)
     for i, (inputs, labels) in enumerate(train_dataloader):
         optimizer.zero_grad()
         inputs = inputs.float()
@@ -68,7 +86,10 @@ for epoch in range(20):
         optimizer.step()
 
     if (epoch+1) % 10 == 0:
-        print (f'Epoch [{epoch+1}/100], Loss: {loss.item():.4f}')
+        print (f'Epoch [{epoch+1}/20], Loss: {loss.item():.4f}')
+
+
+    
 
 model.eval()
 for i in range(20):
