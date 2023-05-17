@@ -59,14 +59,14 @@ class Embedder(nn.Module):
             nn.Linear(1152,512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),
         )
 
         self.fc2 = nn.Sequential(
             nn.Linear(512, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
         )
 
         self.out = nn.Sequential(

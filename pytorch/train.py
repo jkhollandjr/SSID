@@ -18,11 +18,11 @@ class TripletLoss(nn.Module):
         loss = F.relu(pos_dist - neg_dist + self.margin)
         return loss.mean()
 
-
 class TripletDataset(Dataset):
     def __init__(self, inflow_data, outflow_data):
         self.inflow_data = inflow_data
         self.outflow_data = outflow_data
+        self.positive_top = True
 
     def __len__(self):
         # Dataset length is the number of traces
@@ -32,14 +32,32 @@ class TripletDataset(Dataset):
         # Select the window randomly
         window_idx = random.randint(0, self.inflow_data.shape[1]-1)
 
+        cutoff = self.inflow_data.shape[0] // 2
+        if self.positive_top:
+            # anchor, positive from this half of data
+            idx = idx % cutoff
+
+            # negative from the other half
+            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
+        else:
+            idx = cutoff + (idx % cutoff)
+            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
+
+
         anchor = self.inflow_data[idx, window_idx]
         positive = self.outflow_data[idx, window_idx]
 
         # Select a random negative example
-        negative_idx = random.choice([j for j in range(len(self.outflow_data)) if j != idx])
         negative = self.outflow_data[negative_idx, window_idx]
 
         return anchor, positive, negative
+
+    def reset_split(self):
+        # switch which half anchor and positive are being sampled from (to prevent the same example from being both positive and negative in the same epoch
+        if self.positive_top:
+            self.positive_top = False
+        else:
+            self.positive_top = True
 
 # Load the numpy arrays
 train_inflows = np.load('train_inflows.npy')
@@ -71,11 +89,14 @@ outflow_model.to(device)
 
 # Define the loss function and the optimizer
 criterion = TripletLoss()
-optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.001)
+optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001, weight_decay=1e-2)
 
 # Training loop
+best_val_loss = float("inf")
 num_epochs = 500
 for epoch in range(num_epochs):
+    train_dataset.reset_split()
+    val_dataset.reset_split()
     # Training
     inflow_model.train()
     outflow_model.train()
@@ -111,7 +132,6 @@ for epoch in range(num_epochs):
     running_loss = 0.0
     with torch.no_grad():
         for anchor, positive, negative in val_loader:
-            optimizer.zero_grad()
             # Move tensors to the correct device
             anchor = anchor.float().to(device)
             positive = positive.float().to(device)
@@ -130,4 +150,16 @@ for epoch in range(num_epochs):
     val_loss = running_loss / len(val_loader)
 
     print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
+
+    # Save the model if it's the best one so far
+    if val_loss < best_val_loss:
+        print("Best model so far!")
+        best_val_loss = val_loss
+        torch.save({
+            'epoch': epoch,
+            'inflow_model_state_dict': inflow_model.state_dict(),
+            'outflow_model_state_dict': outflow_model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_val_loss': best_val_loss,
+        }, 'best_model.pth')
 
