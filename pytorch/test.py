@@ -11,7 +11,7 @@ inflow_model = Embedder(embedding_size)
 outflow_model = Embedder(embedding_size)
 
 # Load the best models
-checkpoint = torch.load('best_model.pth')
+checkpoint = torch.load('best_model_cosine.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -25,8 +25,10 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-test_inflows = np.load('test_inflows.npy')
-test_outflows = np.load('test_outflows.npy')
+val_inflows = np.load('val_inflows.npy')
+val_outflows = np.load('val_outflows.npy')
+
+print(len(val_inflows))
 
 import torch.nn.functional as F
 
@@ -59,28 +61,36 @@ def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
 
     return euclidean_distances
 
-print(compute_distances(test_inflows[0], test_outflows[0], inflow_model, outflow_model))
+from sklearn.model_selection import train_test_split
 
-import numpy as np
+# Split the original validation set into a new validation set and a test set
+val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
-# Prepare an empty numpy array
-output_array = np.zeros((len(test_inflows) * len(test_outflows), 11))
+# Initialize two empty numpy arrays for the new validation set and the test set
+val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 11))
+test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 11))
+print(len(val_output_array))
+print(len(test_output_array))
 
-# Iterate over all possible combinations of inflow and outflow traces
-for i in range(len(test_inflows)):
-    print(i)
-    for j in range(len(test_outflows)):
-        # Compute the distances
-        distances = compute_distances(test_inflows[i], test_outflows[j], inflow_model, outflow_model)
-
-        # Check if the inflow and outflow are a match (i.e., they have the same index)
+# Generate combinations for the new validation set
+for i in range(len(val_inflows)):
+    print(f"Processing validation set, trace {i+1}/{len(val_inflows)}")
+    for j in range(len(val_outflows)):
+        distances = compute_distances(val_inflows[i], val_outflows[j], inflow_model, outflow_model)
         match = int(i == j)
+        val_output_array[i * len(val_outflows) + j, :10] = distances
+        val_output_array[i * len(val_outflows) + j, 10] = match
 
-        # Store the distances and the match status in the numpy array
-        output_array[i * len(test_outflows) + j, :10] = distances
-        output_array[i * len(test_outflows) + j, 10] = match
+# Generate combinations for the test set
+for i in range(len(test_inflows)):
+    print(f"Processing test set, trace {i+1}/{len(test_inflows)}")
+    for j in range(len(test_outflows)):
+        distances = compute_distances(test_inflows[i], test_outflows[j], inflow_model, outflow_model)
+        match = int(i == j)
+        test_output_array[i * len(test_outflows) + j, :10] = distances
+        test_output_array[i * len(test_outflows) + j, 10] = match
 
-print(distances[0])
-# Save the numpy array to a file
-np.save('distances.npy', output_array)
+# Save the numpy arrays to files
+np.save('val_distances.npy', val_output_array)
+np.save('test_distances.npy', test_output_array)
 

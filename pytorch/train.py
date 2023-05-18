@@ -18,6 +18,18 @@ class TripletLoss(nn.Module):
         loss = F.relu(pos_dist - neg_dist + self.margin)
         return loss.mean()
 
+class CosineTripletLoss(nn.Module):
+    def __init__(self, margin=0.1):
+        super(CosineTripletLoss, self).__init__()
+        self.margin = margin
+        self.cosine_sim = nn.CosineSimilarity(dim=1, eps=1e-6)
+
+    def forward(self, anchor, positive, negative):
+        pos_sim = self.cosine_sim(anchor, positive)
+        neg_sim = self.cosine_sim(anchor, negative)
+        loss = F.relu(neg_sim - pos_sim + self.margin)
+        return loss.mean()
+
 class TripletDataset(Dataset):
     def __init__(self, inflow_data, outflow_data):
         self.inflow_data = inflow_data
@@ -29,44 +41,47 @@ class TripletDataset(Dataset):
         return len(self.inflow_data)
 
     def __getitem__(self, idx):
-        # Select the window randomly
-        window_idx = random.randint(0, self.inflow_data.shape[1]-1)
+        while True:
+            # Select the window randomly
+            window_idx = random.randint(0, self.inflow_data.shape[1]-1)
 
-        cutoff = self.inflow_data.shape[0] // 2
-        if self.positive_top:
-            # anchor, positive from this half of data
-            idx = idx % cutoff
+            cutoff = self.inflow_data.shape[0] // 2
+            if self.positive_top:
+                # anchor, positive from this half of data
+                idx = idx % cutoff
 
-            # negative from the other half
-            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
-        else:
-            idx = cutoff + (idx % cutoff)
-            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
+                # negative from the other half
+                negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
+            else:
+                idx = cutoff + (idx % cutoff)
+                negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
 
 
-        anchor = self.inflow_data[idx, window_idx]
-        positive = self.outflow_data[idx, window_idx]
+            anchor = self.inflow_data[idx, window_idx]
+            positive = self.outflow_data[idx, window_idx]
 
-        # Select a random negative example
-        negative = self.outflow_data[negative_idx, window_idx]
+            # Select a random negative example
+            negative = self.outflow_data[negative_idx, window_idx]
+            
+            # Skip examples where positive and negative are both all zeros
+            if np.count_nonzero(positive) != 0 or np.count_nonzero(negative) != 0:
+                break
 
         return anchor, positive, negative
 
     def reset_split(self):
-        # switch which half anchor and positive are being sampled from (to prevent the same example from being both positive and negative in the same epoch
-        if self.positive_top:
-            self.positive_top = False
-        else:
-            self.positive_top = True
+        # switch which half anchor and positive are being sampled from (to prevent the same example from being both positive and negative in the same epoch)
+        self.positive_top = not self.positive_top
+
 
 # Load the numpy arrays
 train_inflows = np.load('train_inflows.npy')
 val_inflows = np.load('val_inflows.npy')
-test_inflows = np.load('test_inflows.npy')
+#test_inflows = np.load('test_inflows.npy')
 
 train_outflows = np.load('train_outflows.npy')
 val_outflows = np.load('val_outflows.npy')
-test_outflows = np.load('test_outflows.npy')
+#test_outflows = np.load('test_outflows.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -88,12 +103,12 @@ inflow_model.to(device)
 outflow_model.to(device)
 
 # Define the loss function and the optimizer
-criterion = TripletLoss()
-optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001, weight_decay=1e-2)
+criterion = CosineTripletLoss()
+optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001, weight_decay=1e-3)
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 500
+num_epochs = 200
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -161,5 +176,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, 'best_model.pth')
+        }, 'best_model_cosine.pth')
 
