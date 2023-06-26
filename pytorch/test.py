@@ -1,17 +1,17 @@
 import numpy as np
 import torch
 from model import Embedder
-from torch.nn.functional import cosine_similarity
 from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
+from orig_model import DFModel
 
 # Instantiate the models
 embedding_size = 64
-inflow_model = Embedder(embedding_size)
-outflow_model = Embedder(embedding_size)
+inflow_model = DFModel()
+outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_cosine.pth')
+checkpoint = torch.load('best_model_cosine_4.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -30,11 +30,9 @@ val_outflows = np.load('val_outflows.npy')
 
 print(len(val_inflows))
 
-import torch.nn.functional as F
-
 def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
     # List to store distances
-    euclidean_distances = []
+    cosine_similarities = []
 
     # Iterate over windows in the trace
     for i in range(inflow_trace.shape[0]):
@@ -54,23 +52,23 @@ def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
         inflow_embedding = inflow_model(inflow_window)
         outflow_embedding = outflow_model(outflow_window)
 
-        # Compute euclidean distance
-        euclidean_distance = F.pairwise_distance(inflow_embedding, outflow_embedding)
-        euclidean_distance = euclidean_distance.item()  # Convert tensor to single number
-        euclidean_distances.append(euclidean_distance)
+        # Compute cosine similarity
+        cosine_similarity = F.cosine_similarity(inflow_embedding, outflow_embedding)
+        cosine_similarity = cosine_similarity.item()  # Convert tensor to single number
+        cosine_similarities.append(cosine_similarity)
 
-    return euclidean_distances
+    return cosine_similarities
 
 from sklearn.model_selection import train_test_split
 
 # Split the original validation set into a new validation set and a test set
+val_inflows = val_inflows[:1000]
+val_outflows = val_outflows[:1000]
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
 # Initialize two empty numpy arrays for the new validation set and the test set
 val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 11))
 test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 11))
-print(len(val_output_array))
-print(len(test_output_array))
 
 # Generate combinations for the new validation set
 for i in range(len(val_inflows)):
@@ -91,6 +89,6 @@ for i in range(len(test_inflows)):
         test_output_array[i * len(test_outflows) + j, 10] = match
 
 # Save the numpy arrays to files
-np.save('val_distances.npy', val_output_array)
-np.save('test_distances.npy', test_output_array)
+np.save('dcf_val_distances.npy', val_output_array)
+np.save('dcf_test_distances.npy', test_output_array)
 

@@ -34,6 +34,7 @@ def convert_file_to_numpy(filename):
             times_with_direction = times * directions
 
             window = np.stack([sizes, directions, inter_packet_times, times_with_direction])
+            #window = np.stack([sizes, inter_packet_times])
             windows.append(window)
 
     return np.stack(windows)
@@ -44,13 +45,16 @@ def process_directory(directory):
     file_list = sorted([os.path.join(directory, file) for file in os.listdir(directory)])
 
     # Use a pool of worker processes to convert files in parallel
-    with mp.Pool(processes=mp.cpu_count()-31) as pool:
+    with mp.Pool(processes=mp.cpu_count()-5) as pool:
         arrays = pool.map(convert_file_to_numpy, file_list)
 
     return np.stack(arrays)
 
 inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflows/"
 outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflows/"
+
+#inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow"
+#outflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/outflow/"
 
 # Process directories
 inflow_data = process_directory(inflow_directory)

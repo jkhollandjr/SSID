@@ -5,7 +5,9 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import random
 from model import Embedder
+from orig_model import DFModel
 import torch.nn.functional as F
+
 
 class TripletLoss(nn.Module):
     def __init__(self, margin=1.0):
@@ -35,44 +37,46 @@ class TripletDataset(Dataset):
         self.inflow_data = inflow_data
         self.outflow_data = outflow_data
         self.positive_top = True
+        self.cur_train_index = 0
 
     def __len__(self):
         # Dataset length is the number of traces
         return len(self.inflow_data)
 
     def __getitem__(self, idx):
-        while True:
-            # Select the window randomly
-            window_idx = random.randint(0, self.inflow_data.shape[1]-1)
+        #while True:
+        # Select the window randomly
+        window_idx = random.randint(0, self.inflow_data.shape[1]-1)
 
-            cutoff = self.inflow_data.shape[0] // 2
-            if self.positive_top:
-                # anchor, positive from this half of data
-                idx = idx % cutoff
+        cutoff = self.inflow_data.shape[0] // 2
+        if self.positive_top:
+            # anchor, positive from this half of data
+            idx = self.cur_train_index % cutoff
 
-                # negative from the other half
-                negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
-            else:
-                idx = cutoff + (idx % cutoff)
-                negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
+            # negative from the other half
+            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
+        else:
+            idx = self.cur_train_index % cutoff + cutoff
+            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
 
+        anchor = self.inflow_data[idx, window_idx]
+        positive = self.outflow_data[idx, window_idx]
 
-            anchor = self.inflow_data[idx, window_idx]
-            positive = self.outflow_data[idx, window_idx]
-
-            # Select a random negative example
-            negative = self.outflow_data[negative_idx, window_idx]
-            
-            # Skip examples where positive and negative are both all zeros
-            if np.count_nonzero(positive) != 0 or np.count_nonzero(negative) != 0:
-                break
+        # Select a random negative example
+        negative = self.outflow_data[negative_idx, window_idx]
+        
+        # Skip examples where positive and negative are both all zeros
+        #if np.count_nonzero(positive) != 0 or np.count_nonzero(negative) != 0:
+        #    break
+    
+        self.cur_train_index += 1
 
         return anchor, positive, negative
 
     def reset_split(self):
         # switch which half anchor and positive are being sampled from (to prevent the same example from being both positive and negative in the same epoch)
         self.positive_top = not self.positive_top
-
+        self.cur_train_index = 0  # reset index at the start of each epoch
 
 # Load the numpy arrays
 train_inflows = np.load('train_inflows.npy')
@@ -88,14 +92,15 @@ train_dataset = TripletDataset(train_inflows, train_outflows)
 val_dataset = TripletDataset(val_inflows, val_outflows)
 
 # Create the dataloaders
-batch_size = 64
+batch_size = 128
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 # Instantiate the models
 embedding_size = 64
-inflow_model = Embedder(embedding_size)
-outflow_model = Embedder(embedding_size)
+inflow_model = DFModel()
+outflow_model = DFModel()
+
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -104,11 +109,12 @@ outflow_model.to(device)
 
 # Define the loss function and the optimizer
 criterion = CosineTripletLoss()
-optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001, weight_decay=1e-3)
+optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001)
+#optimizer = optim.SGD(list(inflow_model.parameters())+list(outflow_model.parameters()), lr=.001, weight_decay=1e-6, momentum=.9, nesterov=True)
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 200
+num_epochs = 5000
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -176,5 +182,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, 'best_model_cosine.pth')
+        }, 'best_model_cosine_4.pth')
 
