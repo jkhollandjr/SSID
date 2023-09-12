@@ -32,59 +32,61 @@ class CosineTripletLoss(nn.Module):
         loss = F.relu(neg_sim - pos_sim + self.margin)
         return loss.mean()
 
+
 class TripletDataset(Dataset):
     def __init__(self, inflow_data, outflow_data):
+        self.positive_top = True
         self.inflow_data = inflow_data
         self.outflow_data = outflow_data
-        self.positive_top = True
-        self.cur_train_index = 0
+        self.all_indices = list(range(len(self.inflow_data)))
+        random.shuffle(self.all_indices)  # Shuffle the indices initially
+
+        # Divide the shuffled indices into two partitions.
+        cutoff = len(self.all_indices) // 2
+        self.partition_1 = self.all_indices[:cutoff]
+        self.partition_2 = self.all_indices[cutoff:]
 
     def __len__(self):
-        # Dataset length is the number of traces
         return len(self.inflow_data)
 
     def __getitem__(self, idx):
-        #while True:
-        # Select the window randomly
         window_idx = random.randint(0, self.inflow_data.shape[1]-1)
 
-        cutoff = self.inflow_data.shape[0] // 2
+        # Choose a positive from partition 1 and a negative from partition 2 (or vice versa).
         if self.positive_top:
-            # anchor, positive from this half of data
-            idx = self.cur_train_index % cutoff
-
-            # negative from the other half
-            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j > cutoff)])
+            idx = random.choice(self.partition_1)
+            negative_idx = random.choice([j for j in self.partition_2 if j != idx])
         else:
-            idx = self.cur_train_index % cutoff + cutoff
-            negative_idx = random.choice([j for j in range(len(self.outflow_data)) if (j != idx and j < cutoff)])
+            idx = random.choice(self.partition_2)
+            negative_idx = random.choice([j for j in self.partition_1 if j != idx])
 
         anchor = self.inflow_data[idx, window_idx]
         positive = self.outflow_data[idx, window_idx]
-
-        # Select a random negative example
         negative = self.outflow_data[negative_idx, window_idx]
-        
-        # Skip examples where positive and negative are both all zeros
-        #if np.count_nonzero(positive) != 0 or np.count_nonzero(negative) != 0:
-        #    break
-    
-        self.cur_train_index += 1
 
+        # Note: Skip examples logic can be added here, but as mentioned, it's better to handle in DataLoader's collate_fn
+        
         return anchor, positive, negative
 
     def reset_split(self):
-        # switch which half anchor and positive are being sampled from (to prevent the same example from being both positive and negative in the same epoch)
         self.positive_top = not self.positive_top
-        self.cur_train_index = 0  # reset index at the start of each epoch
+
+        # Reshuffle the indices at the start of each epoch.
+        random.shuffle(self.all_indices)
+
+        # Re-divide the shuffled indices into two partitions.
+        cutoff = len(self.all_indices) // 2
+        self.partition_1 = self.all_indices[:cutoff]
+        self.partition_2 = self.all_indices[cutoff:]
+
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows.npy')
-val_inflows = np.load('val_inflows.npy')
+train_inflows = np.load('train_inflows_4.npy')
+val_inflows = np.load('val_inflows_4.npy')
 #test_inflows = np.load('test_inflows.npy')
 
-train_outflows = np.load('train_outflows.npy')
-val_outflows = np.load('val_outflows.npy')
+train_outflows = np.load('train_outflows_4.npy')
+val_outflows = np.load('val_outflows_4.npy')
 #test_outflows = np.load('test_outflows.npy')
 
 # Define the datasets
@@ -100,7 +102,6 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 embedding_size = 64
 inflow_model = DFModel()
 outflow_model = DFModel()
-
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -182,5 +183,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, 'best_model_cosine_4.pth')
+        }, 'best_model_4.pth')
 

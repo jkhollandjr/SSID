@@ -12,7 +12,7 @@ def convert_file_to_numpy(filename):
         packets = [(float(line.split('\t')[0]), float(line.split('\t')[1])) for line in data]
 
         # Create 10 overlapping windows
-        for start in np.arange(0, 20, 2):  # 0, 2, 4, ..., 18
+        for start in np.arange(0, 22, 2):  # 0, 2, 4, ..., 18
             end = start + 5
             window_packets = [p for p in packets if start <= p[0] < end]
 
@@ -32,9 +32,10 @@ def convert_file_to_numpy(filename):
 
             # Make sizes of download packets negative
             times_with_direction = times * directions
+            inter_packet_times = inter_packet_times * directions
 
-            window = np.stack([sizes, directions, inter_packet_times, times_with_direction])
-            #window = np.stack([sizes, inter_packet_times])
+            #window = np.stack([sizes, directions, inter_packet_times, times_with_direction])
+            window = np.stack([sizes, inter_packet_times])
             windows.append(window)
 
     return np.stack(windows)
@@ -50,10 +51,10 @@ def process_directory(directory):
 
     return np.stack(arrays)
 
-inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflows/"
-outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflows/"
+inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_obfuscated/"
+outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow/"
 
-#inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow"
+#inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow/"
 #outflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/outflow/"
 
 # Process directories
@@ -77,10 +78,10 @@ val_outflows = outflow_data[val_indices]
 #test_outflows = outflow_data[test_indices]
 
 # Save the numpy arrays for later use
-np.save('train_inflows.npy', train_inflows)
-np.save('val_inflows.npy', val_inflows)
+np.save('train_inflows_4.npy', train_inflows)
+np.save('val_inflows_4.npy', val_inflows)
 #np.save('test_inflows.npy', test_inflows)
 
-np.save('train_outflows.npy', train_outflows)
-np.save('val_outflows.npy', val_outflows)
+np.save('train_outflows_4.npy', train_outflows)
+np.save('val_outflows_4.npy', val_outflows)
 #np.save('test_outflows.npy', test_outflows)

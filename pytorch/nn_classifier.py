@@ -13,10 +13,10 @@ val_data = np.load('dcf_val_distances.npy')
 test_data = np.load('dcf_test_distances.npy')
 
 # Split the data into inputs and targets
-val_inputs = val_data[:, :10]
-val_targets = val_data[:, 10]
-test_inputs = test_data[:, :10]
-test_targets = test_data[:, 10]
+val_inputs = val_data[:, :11]
+val_targets = val_data[:, 11]
+test_inputs = test_data[:, :11]
+test_targets = test_data[:, 11]
 
 # Standardize the inputs
 #scaler = StandardScaler()
@@ -48,7 +48,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 class MyModel(nn.Module):
     def __init__(self):
         super(MyModel, self).__init__()
-        self.fc1 = nn.Linear(10, 64)
+        self.fc1 = nn.Linear(11, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 1)

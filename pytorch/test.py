@@ -11,7 +11,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_cosine_4.pth')
+checkpoint = torch.load('best_model_4.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -25,8 +25,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows.npy')
-val_outflows = np.load('val_outflows.npy')
+val_inflows = np.load('val_inflows_obfuscated.npy')
+val_outflows = np.load('val_outflows_obfuscated.npy')
 
 print(len(val_inflows))
 
@@ -67,8 +67,8 @@ val_outflows = val_outflows[:1000]
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
 # Initialize two empty numpy arrays for the new validation set and the test set
-val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 11))
-test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 11))
+val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 12))
+test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 12))
 
 # Generate combinations for the new validation set
 for i in range(len(val_inflows)):
@@ -76,8 +76,8 @@ for i in range(len(val_inflows)):
     for j in range(len(val_outflows)):
         distances = compute_distances(val_inflows[i], val_outflows[j], inflow_model, outflow_model)
         match = int(i == j)
-        val_output_array[i * len(val_outflows) + j, :10] = distances
-        val_output_array[i * len(val_outflows) + j, 10] = match
+        val_output_array[i * len(val_outflows) + j, :11] = distances
+        val_output_array[i * len(val_outflows) + j, 11] = match
 
 # Generate combinations for the test set
 for i in range(len(test_inflows)):
@@ -85,8 +85,8 @@ for i in range(len(test_inflows)):
     for j in range(len(test_outflows)):
         distances = compute_distances(test_inflows[i], test_outflows[j], inflow_model, outflow_model)
         match = int(i == j)
-        test_output_array[i * len(test_outflows) + j, :10] = distances
-        test_output_array[i * len(test_outflows) + j, 10] = match
+        test_output_array[i * len(test_outflows) + j, :11] = distances
+        test_output_array[i * len(test_outflows) + j, 11] = match
 
 # Save the numpy arrays to files
 np.save('dcf_val_distances.npy', val_output_array)
