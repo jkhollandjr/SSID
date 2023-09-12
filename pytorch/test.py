@@ -11,7 +11,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_4.pth')
+checkpoint = torch.load('best_model_4_updated.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -25,8 +25,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows_obfuscated.npy')
-val_outflows = np.load('val_outflows_obfuscated.npy')
+val_inflows = np.load('val_inflows_4.npy')
+val_outflows = np.load('val_outflows_4.npy')
 
 print(len(val_inflows))
 

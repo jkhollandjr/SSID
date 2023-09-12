@@ -81,12 +81,12 @@ class TripletDataset(Dataset):
 
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_4.npy')
-val_inflows = np.load('val_inflows_4.npy')
+train_inflows = np.load('train_inflows_obfuscated.npy')
+val_inflows = np.load('val_inflows_obfuscated.npy')
 #test_inflows = np.load('test_inflows.npy')
 
-train_outflows = np.load('train_outflows_4.npy')
-val_outflows = np.load('val_outflows_4.npy')
+train_outflows = np.load('train_outflows_obfuscated.npy')
+val_outflows = np.load('val_outflows_obfuscated.npy')
 #test_outflows = np.load('test_outflows.npy')
 
 # Define the datasets
@@ -115,7 +115,7 @@ optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.para
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 5000
+num_epochs = 10000
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -183,5 +183,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, 'best_model_4.pth')
+        }, 'best_model_4_obfuscated.pth')
 
