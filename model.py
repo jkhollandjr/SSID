@@ -24,52 +24,6 @@ def create_model(input_shape=None, emb_size=None, model_name=''):
     conv_stride_size = ['None', 1, 1, 1, 1]
     pool_stride_size = ['None', 4, 4, 4, 4]
     pool_size = ['None', 8, 8, 8, 8]
-    '''
-    
-    model1_out = Conv1D(filters=32, kernel_size=8, strides=1, padding='same')(input_data)
-    model1_out = BatchNormalization(axis=-1)(model1_out)
-    model1_out = ELU(alpha=1.0)(model1_out)
-    model1_out = Conv1D(filters=32, kernel_size=8, strides=1, padding='same')(model1_out)
-    model1_out = BatchNormalization(axis=-1)(model1_out)
-    model1_out = ELU(alpha=1.0)(model1_out)
-    model1_out = MaxPooling1D(pool_size=8, strides=4, padding='same')(model1_out)
-    model1_out = Dropout(rate=0.1)(model1_out)
-
-    model1_out = Conv1D(filters=64, kernel_size=8, strides=1, padding='same')(model1_out)
-    model1_out = BatchNormalization()(model1_out)
-    model1_out = Activation('relu')(model1_out)
-    model1_out = Conv1D(filters=64, kernel_size=8, strides=1, padding='same')(model1_out)
-    model1_out = BatchNormalization()(model1_out)
-    model1_out = Activation('relu')(model1_out)
-    model1_out = MaxPooling1D(pool_size=8, strides=4, padding='same')(model1_out)
-    model1_out = Dropout(rate=0.1)(model1_out)
-
-    print(model1_out._keras_shape)  # (None, 47, 64)
-    model1_out = Flatten()(model1_out)
-    # model1_out = Reshape((-1,))(model1_out)
-    print(model1_out._keras_shape)  # (None, 3008)
-
-    # Issue: OOM when allocating tensor with shape[650000,3000]
-    # model1_out = Dense(1024, activation='relu', kernel_initializer=RandomNormal(stddev=0.01, mean=0.0))(model1_out)
-    # model1_out = Dropout(rate=0.6)(model1_out)
-    model1_out = Dense(1024, kernel_initializer=glorot_uniform(seed=0))(model1_out)
-    model1_out = BatchNormalization()(model1_out)
-    model1_out = Activation('relu')(model1_out)
-    model1_out = Dropout(rate=0.7)(model1_out)
-
-    model1_out = Dense(1024, kernel_initializer=glorot_uniform(seed=0))(model1_out)
-    model1_out = BatchNormalization()(model1_out)
-    model1_out = Activation('relu')(model1_out)
-    model1_out = Dropout(rate=0.5577112789569633)(model1_out)
-
-    model1_out = Dense(1024, kernel_initializer=glorot_uniform(seed=0))(model1_out)
-    model1_out = BatchNormalization()(model1_out)
-    model1_out = Activation('sigmoid')(model1_out)
-    model1_out = Dropout(rate=0.5)(model1_out)
-
-    model1_out = Dense(emb_size, name='FeaturesVec')(model1_out)
-    '''
-
     model = Conv1D(filters=filter_num[1], kernel_size=kernel_size[1],
                    strides=conv_stride_size[1], padding='same', name='block1_conv1'+'_'+model_name)(input_data)
     model = ELU(alpha=1.0, name='block1_adv_act1'+'_'+model_name)(model)
