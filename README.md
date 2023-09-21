@@ -2,7 +2,7 @@
 
 ### Description
 
-The code and techniques in the parent repository are modifications of code from **DeepCoFFEA: Improved Flow Correlation Attacks on Tor via Metric Learning and Amplification**. 
+The code and techniques in the parent repository are modifications of code from **DeepCoFFEA: Improved Flow Correlation Attacks on Tor via Metric Learning and Amplification**, which can be found at: https://github.com/traffic-analysis/deepcoffea.
 
 Improvements include faster training options (online triplet loss and randomly selected triplets), streamlined preprocessing code and more sophisticad voting mechanisms (see embedding\_combination folder). 
 
