@@ -15,6 +15,7 @@ For an adapted PyTorch implementation, see the 'pytorch\_implementation' folder.
 
 To run the attack, follow the instructions from the DeepCoFFEA repository (copied below):
 
+1. Gather flow pairs whose packet counts > threshold per window. Before running code, modify line 82-86 as follows.
 ```
 data_path = '/data/website-fingerprinting/datasets/CrawlE_Proc_100/' #input data path
 out_file_path = '/data/seoh/CrawlE_Proc_100_files.txt' #output text file path to record flow pairs (i.e.,file_names)
@@ -56,11 +57,11 @@ python eval_dcf.py (--input <your_input_path> --model1 <your_model1_path> --mode
 The script above will generate TPRs, FPRs, and BDRs when using 9 out 11 window results.
 
 
-However, if you'd like to use the more sophisticated window combinations, then run:
+However, if you'd like to use the more sophisticated window combinations, then execute the following commands (this can be done instead of running eval\_dcf.py). 
 
 ```
-python eval_dcf_save_dataset.py
-python embedding_combination/nn_embedding_classifier.py #Or, choose another script
+python eval_dcf_save_dataset.py 
+python embedding_combination/nn_embedding_classifier.py # Or, choose another script
 ```
 
 This will save the window distance dataset to file and then uses the distances to train the classifier.

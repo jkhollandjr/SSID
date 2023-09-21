@@ -13,7 +13,7 @@ def convert_file_to_numpy(filename):
         # Convert each line to (time, size) tuple
         packets = [(float(line.split('\t')[0]), float(line.split('\t')[1])) for line in data]
 
-        # Create 10 overlapping windows
+        # Create 11 overlapping windows
         for start in np.arange(0, 22, 2):  # 0, 2, 4, ..., 18
             end = start + 5
             window_packets = [p for p in packets if start <= p[0] < end]
