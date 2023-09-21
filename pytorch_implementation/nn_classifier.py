@@ -7,6 +7,8 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
+from sklearn.metrics import roc_curve
 
 # Load the data
 val_data = np.load('dcf_val_distances.npy')
@@ -17,13 +19,6 @@ val_inputs = val_data[:, :11]
 val_targets = val_data[:, 11]
 test_inputs = test_data[:, :11]
 test_targets = test_data[:, 11]
-
-# Standardize the inputs
-#scaler = StandardScaler()
-#inputs = scaler.fit_transform(inputs)
-
-# Split the data into a training set and a validation set
-#inputs_train, inputs_val, targets_train, targets_val = train_test_split(inputs, targets, test_size=0.4, random_state=42)
 
 # Create PyTorch datasets
 class MyDataset(Dataset):
@@ -45,7 +40,7 @@ batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-class MyModel(nn.Module):
+class Predictor(nn.Module):
     def __init__(self):
         super(MyModel, self).__init__()
         self.fc1 = nn.Linear(11, 64)
@@ -60,10 +55,8 @@ class MyModel(nn.Module):
         x = torch.sigmoid(self.fc4(x))
         return x
 
-import torch.optim as optim
-
 # Instantiate the model and move it to GPU if available
-model = MyModel()
+model = Predictor()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
@@ -120,8 +113,6 @@ for epoch in range(num_epochs):
 
     print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
 
-from sklearn.metrics import roc_curve
-
 # Put the model in evaluation mode
 model.eval()
 
@@ -167,8 +158,3 @@ for threshold in thresholds:
     print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
     print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
 
-'''
-# Print the TPR and FPR for each threshold
-for i, threshold in enumerate(thresholds):
-    print(f"Threshold: {threshold:.4f}, TPR: {tpr[i]:.4f}, FPR: {fpr[i]:.4f}")
-'''

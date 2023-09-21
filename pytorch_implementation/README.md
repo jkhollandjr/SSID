@@ -1,0 +1,5 @@
+# PyTorch SSID Implementation
+
+Here, the datasets representing the selected flows (with one hop of the selected traffic in one dataset and another hop in the other) are preprocessed by the preprocessing.py script. Then, train.py will train the flow embedders and output the models. These models, along with the validation data, can then be used by test.py to create a new dataset representing the distances between windows from a many of the possible matched flow pairs. Finally, these values can be used by the neural network defined in nn\_classifier.py to output the model performance. 
+
+This implementation varies from the DeepCoFFEA approach in that it uses multiple feature representations, doesn't filter traces that have empty windows, outputs validation loss performance, uses the Adam optimizer, and uses an PyTorch implementation of the flow embedder. These changes improve performance significantly on the DCF dataset, though performance is similar on the datasets collected for the SSID project.  

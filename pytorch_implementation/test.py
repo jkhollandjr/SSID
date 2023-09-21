@@ -4,6 +4,7 @@ from model import Embedder
 from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
 from orig_model import DFModel
+from sklearn.model_selection import train_test_split
 
 # Instantiate the models
 embedding_size = 64
@@ -27,8 +28,6 @@ outflow_model.eval()
 # Load the numpy arrays
 val_inflows = np.load('val_inflows_4.npy')
 val_outflows = np.load('val_outflows_4.npy')
-
-print(len(val_inflows))
 
 def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
     # List to store distances
@@ -58,8 +57,6 @@ def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
         cosine_similarities.append(cosine_similarity)
 
     return cosine_similarities
-
-from sklearn.model_selection import train_test_split
 
 # Split the original validation set into a new validation set and a test set
 val_inflows = val_inflows[:1000]

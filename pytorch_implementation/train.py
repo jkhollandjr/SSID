@@ -83,11 +83,9 @@ class TripletDataset(Dataset):
 # Load the numpy arrays
 train_inflows = np.load('train_inflows_obfuscated.npy')
 val_inflows = np.load('val_inflows_obfuscated.npy')
-#test_inflows = np.load('test_inflows.npy')
 
 train_outflows = np.load('train_outflows_obfuscated.npy')
 val_outflows = np.load('val_outflows_obfuscated.npy')
-#test_outflows = np.load('test_outflows.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)

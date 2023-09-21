@@ -60,9 +60,6 @@ def process_directory(directory):
 inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_obfuscated/"
 outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow/"
 
-#inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow/"
-#outflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/outflow/"
-
 # Process directories
 inflow_data = process_directory(inflow_directory)
 outflow_data = process_directory(outflow_directory)
@@ -71,23 +68,18 @@ outflow_data = process_directory(outflow_directory)
 
 # Generate indices for splits
 indices = list(range(len(inflow_data)))
-#train_indices, test_indices = train_test_split(indices, test_size=0.1)
 train_indices, val_indices = train_test_split(indices, test_size=0.25)
 
 # Split inflow_data and outflow_data using the same indices
 train_inflows = inflow_data[train_indices]
 val_inflows = inflow_data[val_indices]
-#test_inflows = inflow_data[test_indices]
 
 train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
-#test_outflows = outflow_data[test_indices]
 
 # Save the numpy arrays for later use
 np.save('train_inflows_obfuscated.npy', train_inflows)
 np.save('val_inflows_obfuscated.npy', val_inflows)
-#np.save('test_inflows.npy', test_inflows)
 
 np.save('train_outflows_obfuscated.npy', train_outflows)
 np.save('val_outflows_obfuscated.npy', val_outflows)
-#np.save('test_outflows.npy', test_outflows)
