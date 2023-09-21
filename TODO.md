@@ -1,7 +1,0 @@
-- [x] Add requirements.txt
-- [ ] Clean up eval script
-- [x] Save models to model/ folder
-- [x] Support better saving / loading model
-- [x] Fix train/test split for different datasets
-- [x] Test DCF on smaller traces
-- [ ] Fix warnings and print more clear messages
