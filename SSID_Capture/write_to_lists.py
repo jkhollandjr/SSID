@@ -1,10 +1,8 @@
 import os
+import random
 from load_data import load_data
 
 data = load_data()
-
-
-
 
 
 #Ugly hack to make sure that DeepCoFFEA doesn't think the traffic is too sparse
@@ -16,7 +14,6 @@ def add_tuples(inner_list):
         inner_list.append((first_float, second_float))
     inner_list.sort(key=lambda x: x[0])
     return inner_list
-
 
 #list structure example
 list_of_lists = [
@@ -32,8 +29,8 @@ list_of_lists = [
     ]
 ]
 
-dir1 = 'inflows'
-dir2 = 'outflows'
+dir1 = 'inflow'
+dir2 = 'outflow'
 
 # Ensure directories exist
 os.makedirs(dir1, exist_ok=True)
@@ -43,7 +40,12 @@ file_counter = 1
 
 for idx, outer_list in enumerate(data):
     file_name = str(idx + 1)
-    for j, inner_list in enumerate(outer_list[:2]):
+
+    # Choose the first and a random trace from the rest of the outer list
+    selected_traces = [outer_list[0], random.choice(outer_list[1:])]
+    selected_traces = [outer_list[0], outer_list[1]]
+
+    for j, inner_list in enumerate(selected_traces):
         inner_list = add_tuples(inner_list)
 
         # Write to the first directory

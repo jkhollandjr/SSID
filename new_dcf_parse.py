@@ -52,7 +52,7 @@ def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
                     break
                 if float(time) < interval[0]:
                     continue
-                if abs(size) > 512:# ignore ack packets
+                if abs(size) > 1:# ignore ack packets
                     if (pre_h_time != 0) and (ipd == 0):
                         big_pkt.append(size)
                         continue
@@ -86,7 +86,7 @@ def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
                     break
                 if float(time) < interval[0]:
                     continue
-                if abs(size) > 66:  # ignore ack packets
+                if abs(size) > 1:  # ignore ack packets
                     if (pre_h_time != 0) and (ipd == 0):
                         big_pkt.append(size)
                         continue
@@ -131,9 +131,9 @@ def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interva
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Cutoff/')
-    parser.add_argument('--file_list_path', required=False, default='original_cutoff.txt')
-    parser.add_argument('--prefix_pickle_output', required=False, default='original_cutoff/')
+    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Decaf_Filtered/')
+    parser.add_argument('--file_list_path', required=False, default='decaf_filtered.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='decaf_filtered/')
 
     args = parser.parse_args()
 

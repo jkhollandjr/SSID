@@ -13,13 +13,13 @@ train_labels = np.load('labels_train.npy')
 test_dataset = np.load('similarity_test.npy')
 test_labels = np.load('labels_test.npy')
 '''
-train_dataset = np.load('dist_train_shortened.npy')
-train_dataset = train_dataset.reshape(1000000, 11)
-train_labels = np.load('dist_labels_train_shortened.npy')
+train_dataset = np.load('../dist_train_shortened.npy')
+train_dataset = train_dataset.reshape(-1, 11)
+train_labels = np.load('../dist_labels_train_shortened.npy')
 
-test_dataset = np.load('dist_test_shortened.npy')
-test_dataset = test_dataset.reshape(1000000, 11)
-test_labels = np.load('dist_labels_train_shortened.npy')
+test_dataset = np.load('../dist_test_shortened.npy')
+test_dataset = test_dataset.reshape(-1, 11)
+test_labels = np.load('../dist_labels_train_shortened.npy')
 
 class BinaryDataset(Dataset):
     def __init__(self, X, y, device):
@@ -90,7 +90,8 @@ for epoch in range(10):
 
 
     
-
+all_fpr = []
+all_tpr = []
 model.eval()
 for i in range(20):
     TP, TN, FP, FN = 0,0,0,0
@@ -119,6 +120,8 @@ for i in range(20):
         print(f'Accuracy: {accuracy:.4f}')
         TPR = float(TP) / (TP + FN)
         FPR = float(FP) / (FP + TN)
+        all_fpr.append(FPR)
+        all_tpr.append(TPR)
         print('TPR: {}'.format(TPR))
         print('FPR: {}'.format(FPR))
         print(TP)
@@ -126,4 +129,5 @@ for i in range(20):
         print(FP)
         print(FN)
 
-
+print(all_fpr)
+print(all_tpr)

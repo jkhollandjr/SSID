@@ -13,20 +13,24 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from model import create_model
 
+#physical_devices=tf.config.experimental.list_physical_devices('GPU')
+#tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 total_time = 0
 total_emb = 0
 total_vot = 0
 total_cos = 0
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-test', default='decaf_filtered/5_test11addn2_w_superpkt.npz')
+parser.add_argument('-test', default='capture/5_test11addn2_w_superpkt.npz')
 parser.add_argument('-flow', default=1000)
 parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
-parser.add_argument('-model1', default='models/model1_best')
-parser.add_argument('-model2', default='models/model2_best')
-parser.add_argument('-output', default="decaf_filtered.csv")
+parser.add_argument('-model1', default='models/model1_best.h5')
+parser.add_argument('-model2', default='models/model2_best.h5')
+parser.add_argument('-output', default="defended_comparison/defended_base.csv")
 args = parser.parse_args()
+
 
 def get_session(gpu_fraction=0.85):
     gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction, allow_growth=True)
@@ -116,6 +120,10 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
         muti_output_list.append(FPR)
         muti_output_list.append(calculate_bdr(TPR, FPR))
         print(TPR, FPR, calculate_bdr(TPR, FPR))
+        print(TP)
+        print(FP)
+        print(TN)
+        print(FN)
 
     end_time = time.time()
     total_time = total_time + (end_time - start_emd)
@@ -167,10 +175,10 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     # load triplet models for tor and exit traffic
     from tensorflow import keras
     
-    tor_model = tf.keras.models.load_model(model1_path + ".h5")
-    exit_model = tf.keras.models.load_model(model2_path + ".h5")
-    tor_model.compile()
-    exit_model.compile()
+    tor_model = tf.keras.models.load_model(model1_path)
+    exit_model = tf.keras.models.load_model(model2_path)
+    tor_model.compile(run_eagerly=True)
+    exit_model.compile(run_eagerly=True)
 
     # print('Get logits for 5 windows')
 
@@ -193,6 +201,101 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     correlated_shreshold_value = five_or_four
     thres_seed = thr
 
+    #save data for processing 
+    tor_data = []
+    exit_data = []
+    for win in range(11):
+        test_data_tor = test_data['tor'][win][0:1000]
+        test_data_exit = test_data['exit'][win][0:1000]
+
+        tor_embs = tor_model.predict(test_data_tor)
+        exit_embs = exit_model.predict(test_data_exit)
+
+        tor_data.append(tor_embs)
+        exit_data.append(exit_embs)
+        
+
+    dataset = []
+    labels = []
+    for i in range(800):
+        if(i%10==0):
+            print(i)
+        for j in range(800):
+            #if(i != j):
+            #    if(np.random.rand() > .001):
+            #        continue
+            feature_vector = []
+            all_differences = []
+            for k in range(11):
+                tor = tor_data[k][i].reshape(1, -1)
+                exit = exit_data[k][j].reshape(1, -1)
+
+                similarity = cosine_similarity(tor, exit)
+                feature_vector.append(similarity.reshape(1)[0])
+
+                if(i==j):
+                    label = 1.0
+                else:
+                    label = 0.0
+            
+                difference = tor - exit
+                all_differences.append(similarity)
+            dataset.append(np.array(all_differences))
+            labels.append(label)
+
+    dataset = np.asarray(dataset)
+    labels = np.asarray(labels).astype(np.float32)
+    np.save('capture_train.npy', dataset)
+    np.save('capture_labels_train.npy', labels)
+
+    #save data for processing 
+    tor_data = []
+    exit_data = []
+    for win in range(11):
+        test_data_tor = test_data['tor'][win][1000:2000]
+        test_data_exit = test_data['exit'][win][1000:2000]
+
+        tor_embs = tor_model.predict(test_data_tor)
+        exit_embs = exit_model.predict(test_data_exit)
+
+        tor_data.append(tor_embs)
+        exit_data.append(exit_embs)
+        
+    dataset = []
+    labels = []
+    for i in range(800):
+        if(i%10==0):
+            print(i)
+        for j in range(800):
+            #if(i != j):
+            #    if(np.random.rand() > .001):
+            #        continue
+            feature_vector = []
+            all_differences = []
+            for k in range(11):
+                tor = tor_data[k][i].reshape(1, -1)
+                exit = exit_data[k][j].reshape(1, -1)
+
+                similarity = cosine_similarity(tor, exit)
+                feature_vector.append(similarity.reshape(1)[0])
+
+                if(i==j):
+                    label = 1.0
+                else:
+                    label = 0.0
+            
+                difference = tor - exit
+                all_differences.append(similarity)
+            dataset.append(np.array(all_differences))
+            labels.append(label)
+
+    dataset = np.asarray(dataset)
+    labels = np.asarray(labels).astype(np.float32)
+    np.save('capture_test.npy', dataset)
+    np.save('capture_labels_test.npy', labels)
+
+
+    exit()
     for win in range(11):
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ We are in window %d ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" % win)
 
@@ -202,6 +305,7 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
 
         test_data_tor = test_data['tor'][win][:full_or_half]
         test_data_exit = test_data['exit'][win][:full_or_half]
+        print(test_data_tor.shape)
 
         start_emd = time.time()
         tor_embs = tor_model.predict(test_data_tor)
@@ -230,6 +334,7 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
 
 
 if __name__ == "__main__":
+    get_session()
 
     test_path = args.test
     model1_path = args.model1
@@ -240,7 +345,7 @@ if __name__ == "__main__":
     num_of_thr = len(rank_thr_list)
     flow_length = int(args.flow)
 
-    five_or_four = 9
+    five_or_four = 11
 
     rank_multi_output = []
     five_rank_multi_output = []

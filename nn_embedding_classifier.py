@@ -6,11 +6,11 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 device = torch.device("cuda")
-train_dataset = np.load('fv_train.npy').reshape(1000000, 704)
-train_labels = np.load('fv_labels_train.npy')
+train_dataset = np.load('capture_train.npy').reshape(640000, 11)
+train_labels = np.load('capture_labels_train.npy')
 
-test_dataset = np.load('fv_test.npy').reshape(1000000, 704)
-test_labels = np.load('fv_labels_test.npy')
+test_dataset = np.load('capture_test.npy').reshape(640000, 11)
+test_labels = np.load('capture_labels_test.npy')
 
 print("Loaded numpy arrays")
 
@@ -38,7 +38,7 @@ test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 class BinaryClassifier(nn.Module):
     def __init__(self):
         super(BinaryClassifier, self).__init__()
-        self.fc1 = nn.Linear(704, 128)
+        self.fc1 = nn.Linear(11, 128)
         self.fc2 = nn.Linear(128, 32)
         self.fc3 = nn.Linear(32, 1)
 
@@ -53,7 +53,7 @@ model = BinaryClassifier()
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
-for epoch in range(10):
+for epoch in range(11):
     for i, (inputs, labels) in enumerate(train_dataloader):
         optimizer.zero_grad()
         inputs = inputs.float()
@@ -71,6 +71,9 @@ for epoch in range(10):
         print (f'Epoch [{epoch+1}/100], Loss: {loss.item():.4f}')
 
 model.eval()
+
+TPR_list = []
+FPR_list = []
 for i in range(20):
     TP, TN, FP, FN = 0,0,0,0
     with torch.no_grad():
@@ -100,9 +103,13 @@ for i in range(20):
         FPR = float(FP) / (FP + TN)
         print('TPR: {}'.format(TPR))
         print('FPR: {}'.format(FPR))
+        TPR_list.append(TPR)
+        FPR_list.append(FPR)
         print(TP)
         print(TN)
         print(FP)
         print(FN)
 
 
+print(", ".join(map(str, TPR_list)))
+print(", ".join(map(str, FPR_list)))

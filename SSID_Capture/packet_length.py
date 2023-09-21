@@ -2,7 +2,7 @@ import os
 import glob
 import matplotlib.pyplot as plt
 
-dir1 = 'inflows'
+dir1 = 'may_inflow'
 
 # Load files from the first directory
 file_paths = glob.glob(os.path.join(dir1, '*'))
@@ -21,4 +21,5 @@ plt.title('Trace Sizes by Number of Packets')
 plt.xlabel('Number of Packets')
 plt.ylabel('Frequency')
 plt.savefig('length.png')
+plt.show()
 

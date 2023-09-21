@@ -2,7 +2,7 @@ import os
 import glob
 import matplotlib.pyplot as plt
 
-dir1 = 'inflows'
+dir1 = 'may_inflow'
 
 # Load files from the first directory
 file_paths = glob.glob(os.path.join(dir1, '*'))
@@ -38,5 +38,6 @@ ax2.set_ylabel('Frequency')
 
 # Adjust layout and display plots
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.savefig('length_distribution.png')
+plt.show()
+#plt.savefig('length_distribution.png')
 

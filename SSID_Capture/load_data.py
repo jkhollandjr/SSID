@@ -14,13 +14,13 @@ def process(x):
     iats = np.concatenate(([0], iats))
 
     #In case DeepCoFFEA struggles with the small total time
-    MULTIPLIER = 10
+    MULTIPLIER = 40
     output = [(MULTIPLIER*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
 
     return output
 
 
-def load_data(fp = './processed.pkl'):
+def load_data(fp = './processed_May.pkl'):
     """
     Load the metadata for all samples collected in our SSID data, and process them using the process() function.
 
