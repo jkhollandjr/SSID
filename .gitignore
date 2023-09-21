@@ -1,14 +1,9 @@
 # .gitignore
 
-# Ignore .npy files
 *.npy
-
-# Ignore .csv files
 *.csv
-
-# Ignore .txt files
 *.txt
-
-# Ignore .out files
 *.out
-
+*.pth
+*.pyc
+*.pcap
