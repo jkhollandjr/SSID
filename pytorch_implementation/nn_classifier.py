@@ -42,7 +42,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 class Predictor(nn.Module):
     def __init__(self):
-        super(MyModel, self).__init__()
+        super(Predictor, self).__init__()
         self.fc1 = nn.Linear(11, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
