@@ -22,13 +22,13 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='original_cutoff/')
-    parser.add_argument('--test', required=False, default='original_cutoff/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="cutoff_")
-    parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard(1) All traces (2) Online semi-hard')
-    parser.add_argument('--load_model1', required=False, default = '')
-    parser.add_argument('--load_model2', required=False, default='')
-    parser.add_argument('--test_set_size', required=False, type=int, default=2000)
+    parser.add_argument('--input', required=False, default='capture/')
+    parser.add_argument('--test', required=False, default='capture/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="capture_sept_")
+    parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard (1) All traces (2) Online semi-hard')
+    parser.add_argument('--load_model1', required=False, default = 'models/replicate_capture_model1_0.004692753776907921.h5')
+    parser.add_argument('--load_model2', required=False, default='models/replicate_capture_model2_0.004692753776907921.h5')
+    parser.add_argument('--test_set_size', required=False, type=int, default=1000)
     args = parser.parse_args()
     return args
 
@@ -47,7 +47,6 @@ def load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_
     window_exit = []
 
     if option == 'sonly':
-        print("extract size-only features...")
         for i in range(len(tor_seq)):
             window_tor.append([pair["size"] for pair in tor_seq[i]])
             window_exit.append([pair["size"] for pair in exit_seq[i]])
@@ -59,13 +58,10 @@ def load_whole_seq_new(option, tor_seq, exit_seq, circuit_labels, test_c, train_
         test_window1.append(window_tor[test_index])
         test_window2.append(window_exit[test_index])
     elif option == 'tonly':
-        print("extract ipd-only features...")
         for trace in tor_seq:
             window_tor.append([pair["ipd"] for pair in trace])
-        print('window_tor', len(window_tor))
         for trace in exit_seq:
             window_exit.append([pair["ipd"] for pair in trace])
-        print('window_exit', len(window_exit))
         window_tor = np.array(window_tor)
         window_exit = np.array(window_exit)
         train_window1.append(window_tor[train_index])
@@ -297,8 +293,6 @@ if __name__ == '__main__':
     np.savez_compressed(args.test+str(interval)+'_test' + str(num_windows) + 'addn'+str(addn)+'_w_superpkt.npz', tor=np.array(test_windows1), exit=np.array(test_windows2))
     test_windows1 = np.array(test_windows1)
     test_windows2 = np.array(test_windows2)
-    print(test_windows1.shape)
-    print(test_windows2.shape)
 
     train_windows1 = np.array(train_windows1)
     valid_windows1 = np.array(valid_windows1)
@@ -339,6 +333,7 @@ if __name__ == '__main__':
     positive = Input(input_shape2, name='positive')
     negative = Input(input_shape2, name='negative')
 
+    print(anchor.shape)
     a = shared_model1(anchor)
     p = shared_model2(positive)
     n = shared_model2(negative)
@@ -387,7 +382,7 @@ if __name__ == '__main__':
         inputs=[anchor, positive, negative],
         outputs=loss)
 
-    opt = optimizers.SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
+    opt = optimizers.legacy.SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
 
     def identity_loss(y_true, y_pred):
         return K.mean(y_pred - 0 * y_true)
@@ -505,7 +500,7 @@ if __name__ == '__main__':
     all_traces_train_idx = np.array(range(len(train_windows1)))
     gen_hard = SemiHardTripletGenerator(train_windows1, train_windows2, batch_size, all_traces_train_idx,
                                         train_windows1, train_windows2, None, None)
-    nb_epochs = 10000
+    nb_epochs = 1500
     description = 'coffeh2'
 
     best_loss = sys.float_info.max
@@ -522,6 +517,10 @@ if __name__ == '__main__':
 
             shared_model1.save('models/' + args.model + "model1_" + str(loss) + ".h5")
             shared_model2.save('models/' + args.model + "model2_" + str(loss) + ".h5")
+
+            shared_model1.save('models/' + "model1_best" + ".h5")
+            shared_model2.save('models/' + "model2_best" + ".h5")
+
         else:
             print("loss is not improved from {}.".format(str(best_loss)))
 
