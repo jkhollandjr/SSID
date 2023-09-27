@@ -13,9 +13,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from model import create_model
 
-#physical_devices=tf.config.experimental.list_physical_devices('GPU')
-#tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
 total_time = 0
 total_emb = 0
 total_vot = 0
@@ -28,7 +25,7 @@ parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
 parser.add_argument('-model1', default='models/model1_best.h5')
 parser.add_argument('-model2', default='models/model2_best.h5')
-parser.add_argument('-output', default="defended_comparison/defended_base.csv")
+parser.add_argument('-output', default="capture_eval.csv")
 args = parser.parse_args()
 
 
@@ -119,11 +116,6 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
         muti_output_list.append(TPR)
         muti_output_list.append(FPR)
         muti_output_list.append(calculate_bdr(TPR, FPR))
-        print(TPR, FPR, calculate_bdr(TPR, FPR))
-        print(TP)
-        print(FP)
-        print(TN)
-        print(FN)
 
     end_time = time.time()
     total_time = total_time + (end_time - start_emd)
@@ -177,8 +169,8 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     
     tor_model = tf.keras.models.load_model(model1_path)
     exit_model = tf.keras.models.load_model(model2_path)
-    tor_model.compile(run_eagerly=True)
-    exit_model.compile(run_eagerly=True)
+    tor_model.compile()
+    exit_model.compile()
 
     # print('Get logits for 5 windows')
 
@@ -205,8 +197,8 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     tor_data = []
     exit_data = []
     for win in range(11):
-        test_data_tor = test_data['tor'][win][0:1000]
-        test_data_exit = test_data['exit'][win][0:1000]
+        test_data_tor = test_data['tor'][win][0:500]
+        test_data_exit = test_data['exit'][win][0:500]
 
         tor_embs = tor_model.predict(test_data_tor)
         exit_embs = exit_model.predict(test_data_exit)
@@ -217,10 +209,10 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
 
     dataset = []
     labels = []
-    for i in range(800):
+    for i in range(500):
         if(i%10==0):
             print(i)
-        for j in range(800):
+        for j in range(500):
             #if(i != j):
             #    if(np.random.rand() > .001):
             #        continue
@@ -252,8 +244,8 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     tor_data = []
     exit_data = []
     for win in range(11):
-        test_data_tor = test_data['tor'][win][1000:2000]
-        test_data_exit = test_data['exit'][win][1000:2000]
+        test_data_tor = test_data['tor'][win][500:1000]
+        test_data_exit = test_data['exit'][win][500:1000]
 
         tor_embs = tor_model.predict(test_data_tor)
         exit_embs = exit_model.predict(test_data_exit)
@@ -263,10 +255,10 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
         
     dataset = []
     labels = []
-    for i in range(800):
+    for i in range(500):
         if(i%10==0):
             print(i)
-        for j in range(800):
+        for j in range(500):
             #if(i != j):
             #    if(np.random.rand() > .001):
             #        continue
@@ -293,4 +285,42 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     labels = np.asarray(labels).astype(np.float32)
     np.save('capture_test.npy', dataset)
     np.save('capture_labels_test.npy', labels)
+    exit()
+
+if __name__ == "__main__":
+
+    test_path = args.test
+    model1_path = args.model1
+    model2_path = args.model2
+
+    rank_thr_list = [60, 50, 47, 43, 40, 37, 33, 28, 24, 20, 16.667, 14, 12.5, 11, 10, 9, 8.333, 7, 6.25, 5, 4.545, 3.846, 2.941, 1.667, 1.6, 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2]
+
+    num_of_thr = len(rank_thr_list)
+    flow_length = int(args.flow)
+
+    five_or_four = 9
+
+    rank_multi_output = []
+    five_rank_multi_output = []
+    for i in range(0, num_of_thr):
+        rank_multi_output.append([(rank_thr_list[i])])
+        five_rank_multi_output.append([(rank_thr_list[i])])
+
+    epoch_index = 0
+    use_global = 0
+    use_softmax = 0
+    use_new_data = 0
+
+    for thr in rank_thr_list:
+        eval_model(flow_length, five_or_four, model1_path, model2_path, test_path, thr, use_global, use_softmax, rank_multi_output[epoch_index], [])
+        epoch_index = epoch_index + 1
+
+    with open(args.output, "w", newline="") as rank_f:
+        writer = csv.writer(rank_f)
+        writer.writerows(rank_multi_output)
+
+    print("total_time: " + str(total_time))
+    print("total_cos: " + str(total_cos))
+    print("total_vot: " + str(total_vot))
+    print("total_emb: " + str(total_emb))
 

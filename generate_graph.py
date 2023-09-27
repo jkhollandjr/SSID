@@ -53,6 +53,35 @@ both_sided_decaf_same_fpr = [0.0477049436795995, 0.006065394242803505, 0.0004083
 one_sided_decaf_same_tpr = [0.67375, 0.51125, 0.3375, 0.18375, 0.08125, 0.0125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 one_sided_decaf_same_fpr = [0.03235919899874844, 0.011059136420525657, 0.002852002503128911, 0.0004130162703379224, 6.414267834793492e-05, 9.386733416770964e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
+
+delayed_4_tpr = [0.8175, 0.64, 0.4775, 0.3025, 0.18125, 0.0825, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_4_fpr = [0.04098404255319149, 0.01524874843554443, 0.0039001877346683356, 0.0007728410513141426, 0.00018304130162703379, 6.1013767209011267e-05, 1.2515644555694618e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_2_tpr = [0.82875, 0.675, 0.5575, 0.3875, 0.2475, 0.15375, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_2_fpr = [0.04536138923654568, 0.01976846057571965, 0.00626720901126408, 0.001656758448060075, 0.00044586983729662076, 0.00011889862327909888, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_2_tpr = [0.886, 0.696, 0.446, 0.188, 0.032, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_2_fpr = [0.04759118236472946, 0.02225250501002004, 0.007507014028056112, 0.0012264529058116232, 1.2024048096192385e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_2_tpr_new = [0.832, 0.616, 0.362, 0.146, 0.016, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_2_fpr_new = [0.03404809619238477, 0.014809619238476955, 0.004765531062124248, 0.000625250501002004, 2.404809619238477e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+
+
+delayed_1_tpr = [0.956, 0.912, 0.822, 0.648, 0.388, 0.16, 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_1_fpr = [0.01629258517034068, 0.009939879759519038, 0.005278557114228457, 0.002152304609218437, 0.0005571142284569138, 0.00010420841683366733, 2.004008016032064e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_4_tpr = [0.762, 0.636, 0.452, 0.252, 0.068, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_4_fpr = [0.044180360721442886, 0.018753507014028056, 0.0074468937875751505, 0.002753507014028056, 0.0005330661322645291, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_8_tpr = [0.472, 0.196, 0.062, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_8_fpr = [0.046032064128256514, 0.006236472945891783, 0.00038476953907815633, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+delayed_2_tpr = [0.862, 0.726, 0.48, 0.244, 0.088, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+delayed_2_fpr = [0.043026052104208415, 0.019967935871743486, 0.006348697394789579, 0.001282565130260521, 9.218436873747494e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+
+
 plt.plot(nn_fpr, nn_tpr, label='Undefended')
 
 plt.plot(outflow_1_fpr, outflow_1_tpr, label='One-sided, 100% overhead')
@@ -61,6 +90,8 @@ plt.plot(outflow_double_fpr, outflow_double_tpr, label='One-sided, 200% overhead
 plt.plot(both_half_fpr, both_half_tpr, label='Two-sided 50% overhead')
 plt.plot(both_fpr, both_tpr, label='Two-sided 100% overhead')
 plt.plot(both_double_fpr, both_double_tpr, label='Two-sided 200% overhead')
+
+
 
 
 '''
@@ -84,9 +115,15 @@ plt.clf()
 
 
 plt.title("Delay Defense Effectiveness vs. DeepCoFFEA")
-plt.plot(both_delayed_fpr, both_delayed_tpr, label='Both delayed max 1 second')
-plt.plot(both_delayed_half_fpr, both_delayed_half_tpr, label='Both delayed max .5 seconds')
-plt.plot(both_delayed_double_fpr, both_delayed_double_tpr, label='Both delayed max 2 seconds')
+#plt.plot(both_delayed_fpr, both_delayed_tpr, label='Both delayed max 1 second')
+plt.plot(both_delayed_half_fpr, both_delayed_half_tpr, label='Both delayed max .0125 seconds')
+#plt.plot(both_delayed_double_fpr, both_delayed_double_tpr, label='Both delayed max 2 seconds')
+plt.plot(delayed_4_fpr, delayed_4_tpr, label='Both delayed max .1 seconds')
+plt.plot(delayed_2_fpr, delayed_2_tpr, label='Both delayed max .05 seconds')
+plt.plot(delayed_1_fpr, delayed_1_tpr, label='Both delayed max .025 seconds')
+plt.plot(delayed_8_fpr, delayed_8_tpr, label='Both delayed max .2 secondss')
+#plt.plot(delayed_2_fpr_new, delayed_2_tpr_new, label='Both delayed max 2 second new')
+
 plt.xscale('log')
 
 plt.ylabel("True Positive Rate (TPR)")
