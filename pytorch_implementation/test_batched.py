@@ -3,7 +3,7 @@ import torch
 from model import Embedder
 from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
-from orig_model import DFModel
+from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
 
 # Instantiate the models
@@ -12,7 +12,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_general.pth')
+checkpoint = torch.load('best_model_dcf_12.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -26,15 +26,15 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows.npy')[:1000]
-val_outflows = np.load('val_outflows.npy')[:1000]
+val_inflows = np.load('val_inflows_dcf_12.npy')[:1000]
+val_outflows = np.load('val_outflows_dcf_12.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
 # Initialize the outputs
-val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 12))
-test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 12))
+val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 13))
+test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 13))
 
 def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow_model):
     all_cosine_similarities = []
@@ -69,7 +69,7 @@ def process_data(inflows, outflows, output_array):
 
     # Allocate an empty array for the results
     # Size: num_inflows * batch_size, 15+1 (for 15 windows and 1 match column)
-    output_array = np.zeros((num_inflows * batch_size, 12))
+    output_array = np.zeros((num_inflows * batch_size, 13))
 
     for idx, inflow_example in enumerate(inflows):
         # Randomly select 64 outflow examples
@@ -93,9 +93,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('dcf_val_distances_batched.npy', val_output_array)
+np.save('dcf_val_distances_dcf_12.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('dcf_test_distances_batched.npy', test_output_array)
+np.save('dcf_test_distances_dcf_12.npy', test_output_array)
 
 print(val_output_array.shape)

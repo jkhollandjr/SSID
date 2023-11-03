@@ -11,14 +11,14 @@ import torch.optim as optim
 from sklearn.metrics import roc_curve
 
 # Load the data
-val_data = np.load('dcf_val_distances.npy')
-test_data = np.load('dcf_test_distances.npy')
+val_data = np.load('dcf_val_distances_dcf_12.npy')
+test_data = np.load('dcf_test_distances_dcf_12.npy')
 
 # Split the data into inputs and targets
-val_inputs = val_data[:, :11]
-val_targets = val_data[:, 11]
-test_inputs = test_data[:, :11]
-test_targets = test_data[:, 11]
+val_inputs = val_data[:, :12]
+val_targets = val_data[:, 12]
+test_inputs = test_data[:, :12]
+test_targets = test_data[:, 12]
 
 # Create PyTorch datasets
 class MyDataset(Dataset):
@@ -43,7 +43,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 class Predictor(nn.Module):
     def __init__(self):
         super(Predictor, self).__init__()
-        self.fc1 = nn.Linear(11, 64)
+        self.fc1 = nn.Linear(12, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 1)
@@ -62,10 +62,10 @@ model.to(device)
 
 # Define the loss function and the optimizer
 criterion = nn.BCELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
 # Training loop
-num_epochs = 5
+num_epochs = 15
 for epoch in range(num_epochs):
     # Training
     model.train()

@@ -3,7 +3,7 @@ import numpy as np
 import multiprocessing as mp
 from sklearn.model_selection import train_test_split
 
-WINDOW_SIZE = 500
+WINDOW_SIZE = 1000
 
 def convert_file_to_numpy(filename):
     windows = []
@@ -13,15 +13,15 @@ def convert_file_to_numpy(filename):
         # Convert each line to (time, size) tuple
         packets = [(float(line.split('\t')[0]), float(line.split('\t')[1])) for line in data]
 
-        # Create 11 overlapping windows
+        # Create 12 overlapping windows
         for start in np.arange(0, 22, 2):  # 0, 2, 4, ..., 18
             end = start + 5
             window_packets = [p for p in packets if start <= p[0] < end]
             window_packets = [(p[0]-start, p[1]) for p in window_packets]
-            if len(window_packets) < 500:
-                window_packets += [(0, 0)] * (500 - len(window_packets))
+            if len(window_packets) < WINDOW_SIZE:
+                window_packets += [(0, 0)] * (WINDOW_SIZE - len(window_packets))
             else:
-                window_packets = window_packets[:500]
+                window_packets = window_packets[:WINDOW_SIZE]
 
             # Separate times and sizes
             times, sizes = zip(*window_packets)
@@ -42,6 +42,27 @@ def convert_file_to_numpy(filename):
             window = np.stack([sizes, inter_packet_times, times_with_direction, directions])
             windows.append(window)
 
+        if(len(packets) < WINDOW_SIZE):
+            packets += [(0,0)] * (WINDOW_SIZE - len(packets))
+        else:
+            packets = packets[:WINDOW_SIZE]
+        times, sizes = zip(*packets)
+        # Convert to numpy arrays and create 4 representations
+        times = np.array(times)
+        sizes = np.array(np.abs(sizes))
+        directions = np.sign(sizes)
+
+        # Handle the diff computation as described
+        non_padded_diff = np.diff(times[times != 0], prepend=0)
+        inter_packet_times = np.pad(non_padded_diff, (0, len(times) - len(non_padded_diff)), mode='constant')
+
+        # Make sizes of download packets negative
+        times_with_direction = times * directions
+        inter_packet_times = np.abs(inter_packet_times)
+
+        window = np.stack([sizes, inter_packet_times, times_with_direction, directions])
+        windows.append(window)
+
     return np.stack(windows)
 
 
@@ -57,8 +78,8 @@ def process_directory(directory):
 
     return np.stack(arrays)
 
-inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_obfuscated/"
-outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow/"
+inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow/"
+outflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/outflow/"
 
 # Process directories
 inflow_data = process_directory(inflow_directory)
@@ -78,8 +99,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('train_inflows_obfuscated.npy', train_inflows)
-np.save('val_inflows_obfuscated.npy', val_inflows)
+np.save('train_inflows_dcf_12.npy', train_inflows)
+np.save('val_inflows_dcf_12.npy', val_inflows)
 
-np.save('train_outflows_obfuscated.npy', train_outflows)
-np.save('val_outflows_obfuscated.npy', val_outflows)
+np.save('train_outflows_dcf_12.npy', train_outflows)
+np.save('val_outflows_dcf_12.npy', val_outflows)

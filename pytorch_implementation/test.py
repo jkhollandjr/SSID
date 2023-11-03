@@ -12,7 +12,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_4_updated.pth')
+checkpoint = torch.load('best_model_ssd_12.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -26,8 +26,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows_4.npy')
-val_outflows = np.load('val_outflows_4.npy')
+val_inflows = np.load('val_inflows_ssid_12.npy')
+val_outflows = np.load('val_outflows_ssid_12.npy')
 
 def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
     # List to store distances
@@ -59,8 +59,8 @@ def compute_distances(inflow_trace, outflow_trace, inflow_model, outflow_model):
     return cosine_similarities
 
 # Split the original validation set into a new validation set and a test set
-val_inflows = val_inflows[:1000]
-val_outflows = val_outflows[:1000]
+val_inflows = val_inflows[:500]
+val_outflows = val_outflows[:500]
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
 # Initialize two empty numpy arrays for the new validation set and the test set
@@ -86,6 +86,6 @@ for i in range(len(test_inflows)):
         test_output_array[i * len(test_outflows) + j, 11] = match
 
 # Save the numpy arrays to files
-np.save('dcf_val_distances.npy', val_output_array)
-np.save('dcf_test_distances.npy', test_output_array)
+np.save('dcf_val_distances_ssd_12.npy', val_output_array)
+np.save('dcf_test_distances_ssd_12.npy', test_output_array)
 

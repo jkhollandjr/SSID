@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import random
 from model import Embedder
-from orig_model import DFModel
+from orig_model import DFModel, DFModelWithAttention
 import torch.nn.functional as F
 
 
@@ -81,11 +81,11 @@ class TripletDataset(Dataset):
 
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_obfuscated.npy')
-val_inflows = np.load('val_inflows_obfuscated.npy')
+train_inflows = np.load('train_inflows_dcf_12.npy')
+val_inflows = np.load('val_inflows_dcf_12.npy')
 
-train_outflows = np.load('train_outflows_obfuscated.npy')
-val_outflows = np.load('val_outflows_obfuscated.npy')
+train_outflows = np.load('train_outflows_dcf_12.npy')
+val_outflows = np.load('val_outflows_dcf_12.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -106,6 +106,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 inflow_model.to(device)
 outflow_model.to(device)
 
+# Load the best models
+#checkpoint = torch.load('best_model_12.pth')
+#inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
+#outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
+
 # Define the loss function and the optimizer
 criterion = CosineTripletLoss()
 optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001)
@@ -113,7 +118,7 @@ optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.para
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 10000
+num_epochs = 50000
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -181,5 +186,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, 'best_model_4_obfuscated.pth')
+        }, 'best_model_dcf_12.pth')
 
