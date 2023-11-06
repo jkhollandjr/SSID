@@ -85,7 +85,9 @@ class BaseDataset(data.Dataset):
                 if not preproc_feats:
                     # create multi-channel feature representation of windows independently
                     for i in range(len(windows)):
-                        stream = stream_processor(stream)
+                        if len(windows[i]) < 1:
+                            continue
+                        windows[i] = stream_processor(windows[i])
 
                 self.data_windows[sample_ID] = windows
 
@@ -246,7 +248,7 @@ def create_windows(times, features,
 
         end = start + window_width
 
-        window_idx = torch.where(torch.logical_and(times >= start, times < end))
+        window_idx = torch.where(torch.logical_and(times >= start, times < end))[0]
         window_features.append(features[window_idx])
 
     return window_features
