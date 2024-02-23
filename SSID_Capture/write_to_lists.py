@@ -3,7 +3,7 @@ import random
 from load_data import load_data
 
 data = load_data()
-
+print('Loaded Data')
 
 #Ugly hack to make sure that DeepCoFFEA doesn't think the traffic is too sparse
 #Not 100% sure this is necessary
@@ -29,8 +29,8 @@ list_of_lists = [
     ]
 ]
 
-dir1 = 'inflow'
-dir2 = 'outflow'
+dir1 = 'inflow_cdf_socat_ssh'
+dir2 = 'outflow_cdf_socat_ssh'
 
 # Ensure directories exist
 os.makedirs(dir1, exist_ok=True)
@@ -38,12 +38,13 @@ os.makedirs(dir2, exist_ok=True)
 
 file_counter = 1
 
+size_ratios = []
+time_ratios = []
 for idx, outer_list in enumerate(data):
     file_name = str(idx + 1)
 
     # Choose the first and a random trace from the rest of the outer list
-    selected_traces = [outer_list[0], random.choice(outer_list[1:])]
-    selected_traces = [outer_list[0], outer_list[1]]
+    selected_traces = [outer_list[0], random.choice(outer_list[-1])]
 
     for j, inner_list in enumerate(selected_traces):
         inner_list = add_tuples(inner_list)
