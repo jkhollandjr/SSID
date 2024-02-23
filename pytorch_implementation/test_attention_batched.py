@@ -3,11 +3,12 @@ import torch
 import random
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
 from transdfnet import DFNet
+from orig_model import DFModel
 
 # Function to process a batch of flows
 def process_flows(inflows, outflows):
     batch_size = inflows.shape[0]
-    predictions = np.zeros(batch_size)
+    predictions = []
 
     for i in range(12):  # Iterate through each window
         sub_inflows = inflows[:, i, :, :]  # Shape (batch_size, 4, 1000)
@@ -19,11 +20,13 @@ def process_flows(inflows, outflows):
 
         with torch.no_grad():
             outputs = model(combined_flow_tensors)
-            batch_predictions = torch.round(outputs.squeeze()).cpu().numpy()
-            predictions += batch_predictions
+            #batch_predictions = torch.round(outputs.squeeze()).cpu().numpy()
+            batch_predictions = (outputs.squeeze() > 0.50).float()
+            predictions.append(batch_predictions)
 
     
-    return predictions >= y  # Final batch prediction
+    final_predictions = torch.sum(torch.stack(predictions), axis=0) >= y
+    return final_predictions.cpu().numpy()
 
 # Load validation arrays
 val_inflows = np.load('val_inflows_dcf_12.npy')  # Shape (x, 12, 4, 1000)
@@ -82,7 +85,8 @@ model_config = {
 
 
 model = DFNet(1, 4, **model_config)
-model.load_state_dict(torch.load('best_model.pth'))
+#model = DFModel()
+model.load_state_dict(torch.load('best_model_lb_tilted.pth'))
 model.eval()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -95,7 +99,8 @@ num_uncorrelated = num_correlated * uncorrelated_to_correlated_ratio
 
 # Create ground truth labels
 batch_size = 32
-ground_truth_labels = [1] * num_correlated + [0] * 10000 * batch_size
+uncorrelated_batches = 10000
+ground_truth_labels = [1] * num_correlated + [0] * uncorrelated_batches * batch_size
 predictions = []
 
 # Function to create batches
@@ -120,7 +125,7 @@ def get_random_non_correlated_pair(length):
     return idx1, idx2
 
 # Process uncorrelated flow pairs
-for i in range(10000):
+for i in range(uncorrelated_batches):
     if i % 100 == 0:
         print(i)
     inflow_indices, outflow_indices = zip(*[get_random_non_correlated_pair(len(val_inflows)) for _ in range(batch_size)])

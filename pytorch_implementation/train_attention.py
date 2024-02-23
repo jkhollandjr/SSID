@@ -83,17 +83,17 @@ model_config = {
 
 
 model = DFNet(1, 4, **model_config) 
-
+model.load_state_dict(torch.load('best_model_lb.pth'))
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_dcf_reshaped.npy')
-val_inflows = np.load('val_inflows_dcf_reshaped.npy')
+train_inflows = np.load('train_inflows_dcf_12.npy')
+val_inflows = np.load('val_inflows_dcf_12.npy')
 
-train_outflows = np.load('train_outflows_dcf_reshaped.npy')
-val_outflows = np.load('val_outflows_dcf_reshaped.npy')
+train_outflows = np.load('train_outflows_dcf_12.npy')
+val_outflows = np.load('val_outflows_dcf_12.npy')
 
 batch_size = 128
-train_dataset = FlowDataset(train_inflows, train_outflows)
-val_dataset = FlowDataset(val_inflows, val_outflows)
+train_dataset = FlowDataset(train_inflows.reshape(-1, 4, 1000), train_outflows.reshape(-1, 4, 1000))
+val_dataset = FlowDataset(val_inflows.reshape(-1, 4, 1000), val_outflows.reshape(-1, 4, 1000))
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -109,7 +109,7 @@ model.to(device)
 #outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
 # Define the loss function and the optimizer
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.00001)
 #optimizer = optim.SGD(list(inflow_model.parameters())+list(outflow_model.parameters()), lr=.001, weight_decay=1e-6, momentum=.9, nesterov=True)
 
 def train_model(model, criterion, optimizer, train_loader, val_loader, num_epochs=10):
@@ -168,7 +168,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, num_epoch
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # Save the model
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), 'best_model_lb_tilted.pth')
             print(f'Epoch {epoch+1}: Validation loss improved to {val_loss:.4f}, saving model.')
 
         # Print metrics
@@ -176,6 +176,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, num_epoch
               f'Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, '
               f'Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%')
 
-criterion = nn.BCELoss()
-train_model(model, criterion, optimizer, train_loader, val_loader, num_epochs=100)
+pos_weight = torch.tensor([.25]).to(device)
+criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+train_model(model, criterion, optimizer, train_loader, val_loader, num_epochs=2000)
 

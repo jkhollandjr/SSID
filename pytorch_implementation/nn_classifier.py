@@ -11,8 +11,8 @@ import torch.optim as optim
 from sklearn.metrics import roc_curve
 
 # Load the data
-val_data = np.load('dcf_val_distances_dcf_12.npy')
-test_data = np.load('dcf_test_distances_dcf_12.npy')
+val_data = np.load('dcf_val_distances_cdf.npy')
+test_data = np.load('dcf_test_distances_cdf.npy')
 
 # Split the data into inputs and targets
 val_inputs = val_data[:, :12]
@@ -62,10 +62,10 @@ model.to(device)
 
 # Define the loss function and the optimizer
 criterion = nn.BCELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
 # Training loop
-num_epochs = 15
+num_epochs = 75
 for epoch in range(num_epochs):
     # Training
     model.train()
@@ -134,8 +134,10 @@ with torch.no_grad():
         targets_list.extend(targets.cpu().numpy())
 
 # Compute the ROC curve
-fpr, tpr, thresholds = roc_curve(targets_list, outputs_list)
+fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=True)
 
+new = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
+thresholds = np.concatenate([new, thresholds])
 for threshold in thresholds:
     # Convert the probabilities to binary outputs
     preds = (np.array(outputs_list) >= threshold).astype(int)
@@ -158,3 +160,8 @@ for threshold in thresholds:
     print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
     print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
 
+tpr = [str(x) for x in list(tpr)]
+fpr = [str(x) for x in list(fpr)]
+
+print(','.join(tpr))
+print(','.join(fpr))
