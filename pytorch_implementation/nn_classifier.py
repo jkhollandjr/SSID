@@ -11,14 +11,14 @@ import torch.optim as optim
 from sklearn.metrics import roc_curve
 
 # Load the data
-val_data = np.load('dcf_val_distances_cdf.npy')
-test_data = np.load('dcf_test_distances_cdf.npy')
+val_data = np.load('dcf_val_distances_dual.npy')
+test_data = np.load('dcf_test_distances_dual.npy')
 
 # Split the data into inputs and targets
-val_inputs = val_data[:, :12]
-val_targets = val_data[:, 12]
-test_inputs = test_data[:, :12]
-test_targets = test_data[:, 12]
+val_inputs = val_data[:, :24]
+val_targets = val_data[:, 24]
+test_inputs = test_data[:, :24]
+test_targets = test_data[:, 24]
 
 # Create PyTorch datasets
 class MyDataset(Dataset):
@@ -43,7 +43,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 class Predictor(nn.Module):
     def __init__(self):
         super(Predictor, self).__init__()
-        self.fc1 = nn.Linear(12, 64)
+        self.fc1 = nn.Linear(24, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 1)
@@ -138,7 +138,12 @@ fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=T
 
 new = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
 thresholds = np.concatenate([new, thresholds])
+print(thresholds)
+counter = 0
 for threshold in thresholds:
+    counter += 1
+    if counter == 110:
+        continue
     # Convert the probabilities to binary outputs
     preds = (np.array(outputs_list) >= threshold).astype(int)
 

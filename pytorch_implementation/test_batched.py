@@ -5,6 +5,7 @@ from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
 from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
+from transdfnet import DFNet
 
 # Instantiate the models
 embedding_size = 64
@@ -12,7 +13,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('best_model_dcf_12.pth')
+checkpoint = torch.load('best_model_ssid_dual_front.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -26,22 +27,39 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows_dcf_12.npy')[:1000]
-val_outflows = np.load('val_outflows_dcf_12.npy')[:1000]
+val_inflows = np.load('val_inflows_dual.npy')[:1000]
+val_outflows = np.load('val_outflows_dual.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
 
 # Initialize the outputs
-val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 13))
-test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 13))
+val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 25))
+test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 25))
 
 def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow_model):
     all_cosine_similarities = []
 
     for window_idx in range(inflow_traces.shape[1]):
-        inflow_window = inflow_traces[:, window_idx, :, :] #64, 15, 4, 500
-        outflow_window = outflow_traces[:, window_idx, :, :]
+        inflow_window = inflow_traces[:, window_idx, :4, :] #64, 15, 4, 500
+        outflow_window = outflow_traces[:, window_idx, :4, :]
+
+        inflow_window = inflow_window.reshape(inflow_window.shape[0], -1, inflow_window.shape[-1]) 
+        outflow_window = outflow_window.reshape(outflow_window.shape[0], -1, outflow_window.shape[-1])
+        # 64, 4, 500
+
+        inflow_window = torch.from_numpy(inflow_window).float().to(device)
+        outflow_window = torch.from_numpy(outflow_window).float().to(device)
+
+        inflow_embeddings = inflow_model(inflow_window) #64, 64
+        outflow_embeddings = outflow_model(outflow_window)
+
+        cosine_similarities = F.cosine_similarity(inflow_embeddings, outflow_embeddings).detach().cpu().numpy() #64,
+        all_cosine_similarities.append(cosine_similarities)
+
+    for window_idx in range(inflow_traces.shape[1]):
+        inflow_window = inflow_traces[:, window_idx, 4:, :] #64, 15, 4, 500
+        outflow_window = outflow_traces[:, window_idx, 4:, :]
 
         inflow_window = inflow_window.reshape(inflow_window.shape[0], -1, inflow_window.shape[-1]) 
         outflow_window = outflow_window.reshape(outflow_window.shape[0], -1, outflow_window.shape[-1])
@@ -69,7 +87,7 @@ def process_data(inflows, outflows, output_array):
 
     # Allocate an empty array for the results
     # Size: num_inflows * batch_size, 15+1 (for 15 windows and 1 match column)
-    output_array = np.zeros((num_inflows * batch_size, 13))
+    output_array = np.zeros((num_inflows * batch_size, 25))
 
     for idx, inflow_example in enumerate(inflows):
         # Randomly select 64 outflow examples
@@ -93,9 +111,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('dcf_val_distances_dcf_12.npy', val_output_array)
+np.save('dcf_val_distances_dual.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('dcf_test_distances_dcf_12.npy', test_output_array)
+np.save('dcf_test_distances_dual.npy', test_output_array)
 
 print(val_output_array.shape)
