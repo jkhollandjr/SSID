@@ -114,7 +114,7 @@ def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
 
     print(interval, 'mean', np.mean(np.array(here_len)), np.mean(np.array(there_len)), np.mean(num_here_big_pkt_cnt), np.mean(num_there_big_pkt_cnt), flow_cnt)
     print(interval, 'median', np.median(np.array(here_len)), np.median(np.array(there_len)), np.median(num_here_big_pkt_cnt), np.median(num_there_big_pkt_cnt), flow_cnt)
-    return np.array(here), np.array(there), np.array(final_names)
+    return np.array(here, dtype=object), np.array(there, dtype=object), np.array(final_names, dtype=object)
 
 def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interval, num_windows, addnum):
     '''Write pickle files for each window'''
