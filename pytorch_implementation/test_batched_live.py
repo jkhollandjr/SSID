@@ -7,7 +7,7 @@ from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
 from transdfnet import DFNet
 
-def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=500):
+def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
     if num_dummy_packets == 0:
         return sizes, times, directions
 
@@ -123,7 +123,7 @@ outflow_model = DFModel()
 
 # Load the best models
 #checkpoint = torch.load('models/best_model_dcf_defened_0.00806727527074893.pth')
-checkpoint = torch.load('models/best_model_dcf_250_0.007983525428048607.pth')
+checkpoint = torch.load('models/best_model_defended.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -137,8 +137,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows_cdf.npy')[:1000]
-val_outflows = np.load('val_outflows_cdf.npy')[:1000]
+val_inflows = np.load('val_inflows_defended.npy')[:1000]
+val_outflows = np.load('val_outflows_defended.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)

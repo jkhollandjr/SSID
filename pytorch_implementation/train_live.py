@@ -235,11 +235,11 @@ def custom_collate_fn(batch):
 
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_defended.npy')
-val_inflows = np.load('val_inflows_defended.npy')
+train_inflows = np.load('train_inflows.npy')
+val_inflows = np.load('val_inflows.npy')
 
-train_outflows = np.load('train_outflows_defended.npy')
-val_outflows = np.load('val_outflows_defended.npy')
+train_outflows = np.load('train_outflows.npy')
+val_outflows = np.load('val_outflows.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -288,9 +288,9 @@ for epoch in range(num_epochs):
         positive = positive.float().to(device)
         negative = negative.float().to(device)
 
-        anchor_embeddings = inflow_model(anchor[:,:4,:])
-        positive_embeddings = outflow_model(positive[:,:4,:])
-        negative_embeddings = outflow_model(negative[:,:4,:])
+        anchor_embeddings = inflow_model(anchor[:,:5,:])
+        positive_embeddings = outflow_model(positive[:,:5,:])
+        negative_embeddings = outflow_model(negative[:,:5,:])
 
         # Compute the loss
         loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -319,9 +319,9 @@ for epoch in range(num_epochs):
             negative = negative.float().to(device)
 
             # Forward pass
-            anchor_embeddings = inflow_model(anchor[:,:4,:])
-            positive_embeddings = outflow_model(positive[:,:4,:])
-            negative_embeddings = outflow_model(negative[:,:4,:])
+            anchor_embeddings = inflow_model(anchor[:,:5,:])
+            positive_embeddings = outflow_model(positive[:,:5,:])
+            negative_embeddings = outflow_model(negative[:,:5,:])
 
             # Compute the loss
             loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -342,5 +342,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_defended.pth')
+        }, f'models/best_model_undefended_5.pth')
 
