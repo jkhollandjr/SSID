@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 class DFModel(nn.Module):
-    def __init__(self, input_shape=(4, 1000), emb_size=64):
+    def __init__(self, input_shape=(5, 1000), emb_size=64):
         super(DFModel, self).__init__()
         
         self.block1_conv1 = nn.Conv1d(input_shape[0], 32, 8, padding='same')
