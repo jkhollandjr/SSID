@@ -9,7 +9,7 @@ def load_ecdf_function(filename="ecdf_function.npy"):
 
     return ecdf_function
 
-ecdf_function = load_ecdf_function("ecdf_function.npy")
+#ecdf_function = load_ecdf_function("ecdf_function.npy")
 
 def transform_new_data(new_data, ecdf_func):
     if np.isscalar(new_data):
@@ -40,14 +40,15 @@ def process(x):
     iats = np.diff(timestamps)
     iats = np.concatenate(([0], iats))
 
-    ecdf_function = load_ecdf_function("ecdf_function.npy")
+    #ecdf_function = load_ecdf_function("ecdf_function.npy")
 
-    output = [(transform_new_data(t, ecdf_function)*30, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
+    #output = [(transform_new_data(t, ecdf_function)*30, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
+    output = [(2.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
 
     return output
 
 
-def load_data(fp = './processed_ssh_socat.pkl'):
+def load_data(fp = './processed_nov30.pkl'):
     """
     Load the metadata for all samples collected in our SSID data, and process them using the process() function.
 

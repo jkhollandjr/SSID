@@ -29,8 +29,8 @@ list_of_lists = [
     ]
 ]
 
-dir1 = 'inflow_cdf_socat_ssh'
-dir2 = 'outflow_cdf_socat_ssh'
+dir1 = 'inflow_nov30'
+dir2 = 'outflow_nov30'
 
 # Ensure directories exist
 os.makedirs(dir1, exist_ok=True)
@@ -44,10 +44,10 @@ for idx, outer_list in enumerate(data):
     file_name = str(idx + 1)
 
     # Choose the first and a random trace from the rest of the outer list
-    selected_traces = [outer_list[0], random.choice(outer_list[-1])]
+    selected_traces = [outer_list[0], outer_list[-1]]
 
     for j, inner_list in enumerate(selected_traces):
-        inner_list = add_tuples(inner_list)
+        #inner_list = add_tuples(inner_list)
 
         # Write to the first directory
         if j == 0:

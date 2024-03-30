@@ -1,11 +1,9 @@
 import numpy as np
 import torch
-from model import Embedder
 from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
 from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
-from transdfnet import DFNet
 
 def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
     if num_dummy_packets == 0:
@@ -80,7 +78,7 @@ def calculate_times_with_directions(times, directions):
 def calculate_cumulative_traffic(sizes, times):
     # Assuming 'sizes' and 'times' are PyTorch tensors
     # This method might need adjustments based on the exact representation of 'times'
-    cumulative_traffic = torch.cumsum(sizes, dim=0)
+    cumulative_traffic = torch.div(torch.cumsum(sizes, dim=0), 1000)
     return cumulative_traffic
 
 # Function to apply transformations and dummy packet insertion
@@ -123,7 +121,7 @@ outflow_model = DFModel()
 
 # Load the best models
 #checkpoint = torch.load('models/best_model_dcf_defened_0.00806727527074893.pth')
-checkpoint = torch.load('models/best_model_defended.pth')
+checkpoint = torch.load('models/best_model_ssid_live.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -137,8 +135,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows_defended.npy')[:1000]
-val_outflows = np.load('val_outflows_defended.npy')[:1000]
+val_inflows = np.load('val_inflows.npy')[:1000]
+val_outflows = np.load('val_outflows.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
@@ -164,8 +162,8 @@ def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow
         #outflow_window = outflow_window.reshape(outflow_window.shape[0], -1, outflow_window.shape[-1])
         # 64, 4, 500
 
-        inflow_embeddings = inflow_model(inflow_window[:,:4,:]) 
-        outflow_embeddings = outflow_model(outflow_window[:,:4,:])
+        inflow_embeddings = inflow_model(inflow_window) 
+        outflow_embeddings = outflow_model(outflow_window)
 
         cosine_similarities = F.cosine_similarity(inflow_embeddings, outflow_embeddings).detach().cpu().numpy() #64,
         all_cosine_similarities.append(cosine_similarities)
@@ -206,9 +204,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('dcf_val_distances_cdf.npy', val_output_array)
+np.save('dcf_val_distances_live.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('dcf_test_distances_cdf.npy', test_output_array)
+np.save('dcf_test_distances_live.npy', test_output_array)
 
 print(val_output_array.shape)

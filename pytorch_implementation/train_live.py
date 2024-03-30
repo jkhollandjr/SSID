@@ -4,10 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Sampler
 import random
-from model import Embedder
 from orig_model import DFModel, DFModelWithAttention
 import torch.nn.functional as F
-from transdfnet import DFNet
 import math
 
 torch.set_printoptions(threshold=5000)
@@ -85,7 +83,7 @@ def calculate_times_with_directions(times, directions):
 def calculate_cumulative_traffic(sizes, times):
     # Assuming 'sizes' and 'times' are PyTorch tensors
     # This method might need adjustments based on the exact representation of 'times'
-    cumulative_traffic = torch.cumsum(sizes, dim=0)
+    cumulative_traffic = torch.div(torch.cumsum(sizes, dim=1), 1000)
     return cumulative_traffic
 
 # Define the learning rate schedule function
@@ -250,8 +248,8 @@ val_sampler = QuadrupleSampler(val_dataset)
 
 # Create the dataloaders
 batch_size = 256
-train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=custom_collate_fn, num_workers=8)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, collate_fn=custom_collate_fn, num_workers=8)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=custom_collate_fn, num_workers=1)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, collate_fn=custom_collate_fn, num_workers=1)
 
 # Instantiate the models
 embedding_size = 64
@@ -288,9 +286,9 @@ for epoch in range(num_epochs):
         positive = positive.float().to(device)
         negative = negative.float().to(device)
 
-        anchor_embeddings = inflow_model(anchor[:,:5,:])
-        positive_embeddings = outflow_model(positive[:,:5,:])
-        negative_embeddings = outflow_model(negative[:,:5,:])
+        anchor_embeddings = inflow_model(anchor)
+        positive_embeddings = outflow_model(positive)
+        negative_embeddings = outflow_model(negative)
 
         # Compute the loss
         loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -319,9 +317,9 @@ for epoch in range(num_epochs):
             negative = negative.float().to(device)
 
             # Forward pass
-            anchor_embeddings = inflow_model(anchor[:,:5,:])
-            positive_embeddings = outflow_model(positive[:,:5,:])
-            negative_embeddings = outflow_model(negative[:,:5,:])
+            anchor_embeddings = inflow_model(anchor[:,:,:])
+            positive_embeddings = outflow_model(positive[:,:,:])
+            negative_embeddings = outflow_model(negative[:,:,:])
 
             # Compute the loss
             loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -342,5 +340,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_undefended_5.pth')
+        }, f'models/best_model_live_undefended.pth')
 

@@ -2,17 +2,19 @@ import numpy as np
 import torch 
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, Sampler
+from torch.utils.data import Dataset, DataLoader
 import random
+from model import Embedder
 from orig_model import DFModel, DFModelWithAttention
 import torch.nn.functional as F
+from transdfnet import DFNet
 import math
 
 # Define the learning rate schedule function
 def lr_schedule(epoch):
-    if epoch < 100:
+    if epoch < 1000:
         # Increase linearly
-        return epoch / 100
+        return epoch / 1000
     else:
         # Decrease gradually
         return 0.5 * (1 + math.cos(math.pi * 1 * (epoch - 1000) / (num_epochs - 1000)))
@@ -87,51 +89,42 @@ class TripletDataset(Dataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
-class QuadrupleSampler(Sampler):
-    """Sampler that repeats the dataset indices four times, effectively quadrupling the dataset size for each epoch."""
-    
-    def __init__(self, data_source):
-        self.data_source = data_source
-    
-    def __iter__(self):
-        # Repeat the dataset indices four times
-        indices = list(range(len(self.data_source))) * 4
-        # Shuffle indices to ensure random sampling across repeats
-        np.random.shuffle(indices)
-        return iter(indices)
-    
-    def __len__(self):
-        # The length is now four times the original dataset size
-        return 4 * len(self.data_source)
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_base.npy')
-val_inflows = np.load('val_inflows_base.npy')
+train_inflows = np.load('train_inflows_dual.npy')
+val_inflows = np.load('val_inflows_dual.npy')
 
-train_outflows = np.load('train_outflows_base.npy')
-val_outflows = np.load('val_outflows_base.npy')
+train_outflows = np.load('train_outflows_dual.npy')
+val_outflows = np.load('val_outflows_dual.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
 val_dataset = TripletDataset(val_inflows, val_outflows)
 
-train_sampler = QuadrupleSampler(train_dataset)
-val_sampler = QuadrupleSampler(val_dataset)
-
 # Create the dataloaders
 batch_size = 128
-train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 # Instantiate the models
 embedding_size = 64
 inflow_model = DFModel()
 outflow_model = DFModel()
 
+#inflow_model = DFNet(100, 4, **model_config)
+#outflow_model = DFNet(100, 4, **model_config)
+
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 inflow_model.to(device)
 outflow_model.to(device)
+
+# Load the best models
+'''
+checkpoint = torch.load('best_model_dcf_dual.pth')
+inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
+outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
+'''
 
 # Define the loss function and the optimizer
 criterion = CosineTripletLoss()
@@ -158,9 +151,16 @@ for epoch in range(num_epochs):
         positive = positive.float().to(device)
         negative = negative.float().to(device)
 
-        anchor_embeddings = inflow_model(anchor[:,:,:])
-        positive_embeddings = outflow_model(positive[:,:,:])
-        negative_embeddings = outflow_model(negative[:,:,:])
+        random_number = random.randint(0,1)
+        if(random_number == 1):
+            anchor_embeddings = inflow_model(anchor[:,:4,:])
+            positive_embeddings = outflow_model(positive[:,:4,:])
+            negative_embeddings = outflow_model(negative[:,:4,:])
+
+        else:
+            anchor_embeddings = inflow_model(anchor[:,4:,:])
+            positive_embeddings = outflow_model(positive[:,4:,:])
+            negative_embeddings = outflow_model(negative[:,4:,:])
 
         # Compute the loss
         loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -172,7 +172,7 @@ for epoch in range(num_epochs):
 
         running_loss += loss.item()
 
-    train_loss = running_loss / (len(train_loader))
+    train_loss = running_loss / len(train_loader)
 
     scheduler.step()
 
@@ -189,16 +189,22 @@ for epoch in range(num_epochs):
             negative = negative.float().to(device)
 
             # Forward pass
-            anchor_embeddings = inflow_model(anchor[:,:,:])
-            positive_embeddings = outflow_model(positive[:,:,:])
-            negative_embeddings = outflow_model(negative[:,:,:])
+            random_number = random.randint(0,1)
+            if(random_number == 1):
+                anchor_embeddings = inflow_model(anchor[:,:4,:])
+                positive_embeddings = outflow_model(positive[:,:4,:])
+                negative_embeddings = outflow_model(negative[:,:4,:])
+            else:
+                anchor_embeddings = inflow_model(anchor[:,4:,:])
+                positive_embeddings = outflow_model(positive[:,4:,:])
+                negative_embeddings = outflow_model(negative[:,4:,:])
 
             # Compute the loss
             loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
 
             running_loss += loss.item()
 
-    val_loss = running_loss / (len(val_loader))
+    val_loss = running_loss / len(val_loader)
 
     print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
 
@@ -212,5 +218,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_base.pth')
+        }, 'best_model_ssid_dual_front.pth')
 
