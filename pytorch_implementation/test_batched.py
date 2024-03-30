@@ -25,8 +25,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows.npy')[:1000]
-val_outflows = np.load('val_outflows.npy')[:1000]
+val_inflows = np.load('data/val_inflows.npy')[:1000]
+val_outflows = np.load('data/val_outflows.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
@@ -91,9 +91,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('dcf_val_distances_live.npy', val_output_array)
+np.save('data/dcf_val_distances_live.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('dcf_test_distances_live.npy', test_output_array)
+np.save('data/dcf_test_distances_live.npy', test_output_array)
 
 print(val_output_array.shape)

@@ -70,8 +70,8 @@ def process_directory(directory):
     return np.stack(arrays)
 
 # Process directories
-inflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/inflow/"
-outflow_directory = "/home/james/Desktop/research/SSID/CrawlE_Proc_20000/outflow/"
+inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_nov30/"
+outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_nov30/"
 
 inflow_data = process_directory(inflow_directory)
 outflow_data = process_directory(outflow_directory)
@@ -88,8 +88,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('train_inflows.npy', train_inflows)
-np.save('val_inflows.npy', val_inflows)
-np.save('train_outflows.npy', train_outflows)
-np.save('val_outflows.npy', val_outflows)
+np.save('data/train_inflows.npy', train_inflows)
+np.save('data/val_inflows.npy', val_inflows)
+np.save('data/train_outflows.npy', train_outflows)
+np.save('data/val_outflows.npy', val_outflows)
 

@@ -105,11 +105,11 @@ class QuadrupleSampler(Sampler):
         return 4 * len(self.data_source)
 
 # Load the numpy arrays
-train_inflows = np.load('train_inflows_base.npy')
-val_inflows = np.load('val_inflows_base.npy')
+train_inflows = np.load('data/train_inflows_base.npy')
+val_inflows = np.load('data/val_inflows_base.npy')
 
-train_outflows = np.load('train_outflows_base.npy')
-val_outflows = np.load('val_outflows_base.npy')
+train_outflows = np.load('data/train_outflows_base.npy')
+val_outflows = np.load('data/val_outflows_base.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)

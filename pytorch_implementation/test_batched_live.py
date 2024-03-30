@@ -4,82 +4,7 @@ from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
 from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
-
-def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
-    if num_dummy_packets == 0:
-        return sizes, times, directions
-
-    device = sizes.device
-    original_length = 1000  # Target length
-
-    num_dummy_packets = np.random.randint(0, 2*num_dummy_packets)
-
-    # Assume packets with direction 0 are non-existent (padding)
-    real_packet_mask = directions != 0
-
-    # Filter out non-existent packets
-    real_sizes = sizes[real_packet_mask]
-    real_times = times[real_packet_mask]
-    real_directions = directions[real_packet_mask]
-
-    # Generate dummy packets
-    dummy_directions = torch.randint(0, 2, (num_dummy_packets,), device=device) * 2 - 1  # Converts {0, 1} to {-1, 1}
-    dummy_sizes = torch.where(dummy_directions == -1, torch.full((num_dummy_packets,), 1514, device=device), torch.full((num_dummy_packets,), 609, device=device))
-    dummy_times = torch.linspace(0, 5, num_dummy_packets, device=device)
-
-    # Combine filtered real packets with dummy packets
-    combined_sizes = torch.cat((real_sizes, dummy_sizes))
-    combined_times = torch.cat((real_times, dummy_times))
-    combined_directions = torch.cat((real_directions, dummy_directions))
-
-    # Sort the combined packets based on times
-    sorted_indices = torch.argsort(combined_times)
-    sorted_sizes = combined_sizes[sorted_indices]
-    sorted_times = combined_times[sorted_indices]
-    sorted_directions = combined_directions[sorted_indices]
-
-    # Check current length and pad if necessary to reach 1000
-    current_length = sorted_sizes.size(0)
-    
-    if current_length < original_length:
-        # Calculate padding length
-        padding_length = original_length - current_length
-
-        # Create padding tensors with 0.0 values
-        padded_sizes = torch.zeros(padding_length, device=device)
-        padded_times = torch.zeros(padding_length, device=device)
-        padded_directions = torch.zeros(padding_length, device=device)
-
-        # Append padding tensors
-        final_sizes = torch.cat((sorted_sizes, padded_sizes))
-        final_times = torch.cat((sorted_times, padded_times))
-        final_directions = torch.cat((sorted_directions, padded_directions))
-    else:
-        # If the current length meets or exceeds the target, trim to 1000
-        final_sizes = sorted_sizes[:original_length]
-        final_times = sorted_times[:original_length]
-        final_directions = sorted_directions[:original_length]
-
-    return final_sizes, final_times, final_directions
-
-def calculate_inter_packet_times(times):
-    # Ensure 'prepend' has the same dimensionality as 'times', except for the last dimension
-    batch_size, seq_length = times.shape
-    prepend_tensor = torch.zeros((batch_size, 1), device=times.device)  # Match the batch dimension, add a single column for prepend
-    
-    non_padded_diff = torch.diff(times, dim=1, prepend=prepend_tensor)
-    # Since you're computing the difference along the last dimension (time sequence), no need to pad after diff
-    
-    return torch.abs(non_padded_diff)
-
-def calculate_times_with_directions(times, directions):
-    return times * directions
-
-def calculate_cumulative_traffic(sizes, times):
-    # Assuming 'sizes' and 'times' are PyTorch tensors
-    # This method might need adjustments based on the exact representation of 'times'
-    cumulative_traffic = torch.div(torch.cumsum(sizes, dim=0), 1000)
-    return cumulative_traffic
+from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic
 
 # Function to apply transformations and dummy packet insertion
 def transform_and_defend_features(features):
@@ -135,8 +60,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('val_inflows.npy')[:1000]
-val_outflows = np.load('val_outflows.npy')[:1000]
+val_inflows = np.load('data/val_inflows.npy')[:1000]
+val_outflows = np.load('data/val_outflows.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
@@ -204,9 +129,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('dcf_val_distances_live.npy', val_output_array)
+np.save('data/dcf_val_distances_live.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('dcf_test_distances_live.npy', test_output_array)
+np.save('data/dcf_test_distances_live.npy', test_output_array)
 
 print(val_output_array.shape)

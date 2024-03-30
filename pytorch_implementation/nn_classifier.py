@@ -11,8 +11,8 @@ import torch.optim as optim
 from sklearn.metrics import roc_curve
 
 # Load the data
-val_data = np.load('dcf_val_distances_cdf.npy')
-test_data = np.load('dcf_test_distances_cdf.npy')
+val_data = np.load('data/dcf_val_distances_live.npy')
+test_data = np.load('data/dcf_test_distances_live.npy')
 
 # Split the data into inputs and targets
 val_inputs = val_data[:, :12]
