@@ -89,7 +89,7 @@ if __name__ == "__main__":
     fen.eval()
 
     # chain length prediction head
-    head = Mlp(dim=feature_dim*2, out_features=2)
+    head = Mlp(dim=feature_dim, out_features=2)
     head = head.to(device)
     head_state_dict = resumed['chain_head']
     head.load_state_dict(head_state_dict)
@@ -116,6 +116,7 @@ if __name__ == "__main__":
     va_data = BaseDataset(pklpath, processor,
                         window_kwargs = window_kwargs,
                         preproc_feats = False,
+                        #preproc_feats = True,
                         sample_idx = va_idx,
                         host_only = True,
                         #stream_ID_range = (1,float('inf'))
@@ -123,12 +124,13 @@ if __name__ == "__main__":
                         )
     va_data = PairwiseDataset(va_data,
                               sample_mode = 'undersample',
-                              sample_ratio = 5)
+                              sample_ratio = 1)
 
     # test dataloader
     te_data = BaseDataset(pklpath, processor,
                         window_kwargs = window_kwargs,
                         preproc_feats = False,
+                        #preproc_feats = True,
                         sample_idx = te_idx,
                         host_only = True,
                         #stream_ID_range = (1,float('inf')),
@@ -136,7 +138,7 @@ if __name__ == "__main__":
                         )
     te_data = PairwiseDataset(te_data, 
                               sample_mode = 'undersample',
-                              sample_ratio = 1000
+                              sample_ratio = 400
             )
 
 
@@ -333,6 +335,8 @@ if __name__ == "__main__":
     # Pass the validation data through the model
     with torch.no_grad():
         for inputs, targets in tqdm(val_loader):
+            #outputs_list.extend(inputs.cpu().numpy())
+
             # Move tensors to the correct device
             inputs, targets = inputs.to(device), targets.to(device)
     

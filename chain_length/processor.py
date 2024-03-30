@@ -258,7 +258,7 @@ class DataProcessor:
         if self._is_enabled('interval_dirs_up', 'interval_dirs_down', 
                             'interval_times', 'interval_iats', 'interval_inv_iat_logs',
                             'interval_cumul', 'interval_rates'):
-            interval_size = 0.02  # 20ms intervals
+            interval_size = 0.03  # 30ms intervals
 
             num_intervals = int(torch.ceil(torch.max(times) / interval_size).item())
 

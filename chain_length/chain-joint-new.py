@@ -106,20 +106,20 @@ if __name__ == "__main__":
         checkpoint_fname = os.path.basename(os.path.dirname(checkpoint_path))
     # else: checkpoint path and fname will be defined later if missing
 
-    model_name = "DF"
+    model_name = "Espresso"
     checkpoint_dir = args.ckpt_dir
     results_dir = args.results_dir
 
     # # # # # #
     # finetune config
     # # # # # #
-    mini_batch_size = 128   # samples to fit on GPU
-    batch_size = 128        # when to update model
+    mini_batch_size = 64   # samples to fit on GPU
+    batch_size = 64        # when to update model
     accum = batch_size // mini_batch_size
     # # # # # #
     warmup_period   = 10
-    ckpt_period     = 30
-    epochs          = 300
+    ckpt_period     = 100
+    epochs          = 1000
     opt_lr          = 1e-3
     opt_betas       = (0.9, 0.999)
     opt_wd          = 0.001
@@ -140,37 +140,44 @@ if __name__ == "__main__":
         model_config = {
                 'input_size': 1200,
                 'feature_dim': 64,
-                'stage_count': 3,
-                #'channel_up_factor': 24,
-                "features": [
-                    "iats", 
-                    "sizes", 
-                    "burst_edges",
-                    ],
-                #"window_kwargs": {
-                #     'window_count': 1, 
-                #     'window_width': 0, 
-                #     'window_overlap': 0,
-                #     "include_all_window": True,
-                #     },
+                'hidden_dim': 128,
+                'depth': 12,
+                'input_conv_kwargs': {
+                    'kernel_size': 3,
+                    'stride': 3,
+                    'padding': 0,
+                    },
+                'output_conv_kwargs': {
+                    'kernel_size': 60,
+                    #'stride': 40,
+                    'stride': 3,
+                    'padding': 0,
+                    },
+                "mhsa_kwargs": {
+                    "head_dim": 16,
+                    "use_conv_proj": True,
+                    "kernel_size": 3,
+                    "stride": 2,
+                    "feedforward_style": "mlp",
+                    "feedforward_ratio": 4,
+                    "feedforward_drop": 0.0
+                },
                 "features": [
                     "interval_dirs_up", 
                     "interval_dirs_down", 
                     "interval_dirs_sum",
                     "interval_dirs_sub",
+                    "interval_iats",
+                    "interval_inv_iat_logs",
+                    "interval_cumul_norm",
+                    "interval_times_norm",
                     ],
-                #"window_kwargs": {
-                #     'window_count': 12, 
-                #     'window_width': 6, 
-                #     'window_overlap': 2,
-                #     "include_all_window": True,
-                #     },
                 "window_kwargs": {
-                     'window_count': 1, 
-                     'window_width': 0, 
-                     'window_overlap': 0,
-                     "include_all_window": True,
-                     },
+                    'window_count': 1, 
+                    'window_width': 0, 
+                    'window_overlap': 0,
+                    'include_all_window': True,
+                },
             }
 
     if args.input_size is not None:
@@ -184,9 +191,9 @@ if __name__ == "__main__":
     print("==> Model configuration:")
     print(json.dumps(model_config, indent=4))
 
-
     # traffic feature extractor
-    fen = DFNet(feature_dim, len(features),
+    fen = EspressoNet(len(features),
+                special_toks = 1,
                 **model_config)
     fen = fen.to(device)
     if resumed:
@@ -195,7 +202,7 @@ if __name__ == "__main__":
     params += fen.parameters()
 
     # chain length prediction head
-    head = Mlp(dim=feature_dim, out_features=2)
+    head = Mlp(dim=feature_dim*2, out_features=2)
     head = head.to(device)
     if resumed:
         head_state_dict = resumed['chain_head']
@@ -224,6 +231,7 @@ if __name__ == "__main__":
     te_idx = np.arange(0,1000)
     va_idx = np.arange(1000,2000)
     tr_idx = np.arange(2000,10000)
+    #tr_idx = np.arange(2000,4000)
 
     # stream window definitions
     window_kwargs = model_config['window_kwargs']
@@ -238,8 +246,7 @@ if __name__ == "__main__":
         """
         dataset = BaseDataset(pklpath, processor,
                             window_kwargs = window_kwargs,
-                            #preproc_feats = False,
-                            preproc_feats = True,
+                            preproc_feats = False,
                             sample_idx = idx,
                             **kwargs,
                             )
@@ -281,12 +288,14 @@ if __name__ == "__main__":
     if resumed and resumed['epoch']:    # if resuming from a finetuning checkpoint
         last_epoch = resumed['epoch']
 
+    """
     scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, 
                                                                 num_warmup_steps = warmup_period * len(trainloader), 
                                                                 num_training_steps = epochs * len(trainloader), 
                                                                 num_cycles = epochs // ckpt_period,
                                                                 #last_epoch = last_epoch * len(trainloader) if last_epoch
                                                                 )
+    """
 
     # define checkpoint fname if not provided
     if not checkpoint_fname:
@@ -360,19 +369,26 @@ if __name__ == "__main__":
 
                     # # # # # #
                     # generate traffic feature vectors & run triplet loss
-                    anc_embed = fen(inputs_anc)
-                    pos_embed = fen(inputs_pos)
-                    neg_embed = fen(inputs_neg)
+                    anc_embed, anc_chain = fen(inputs_anc)
+                    pos_embed, pos_chain = fen(inputs_pos)
+                    neg_embed, neg_chain = fen(inputs_neg)
+                    #anc_embed = fen(inputs_anc).mean(dim=-1)
+                    #pos_embed = fen(inputs_pos).mean(dim=-1)
+                    #neg_embed = fen(inputs_neg).mean(dim=-1)
                     triplet_loss = triplet_criterion(anc_embed, pos_embed, neg_embed)
                     trip_loss += triplet_loss.item()
 
                     # # # # #
                     # predict chain length with head & run loss
                     #pred = head(torch.cat((anc_embed, pos_embed), dim=-1))
-                    pred = head(anc_embed)
-                    #pred = head(torch.cat((anc_embed, anc_embed2), dim=-1))
+                    #pred = head(anc_embed.permute((0,2,1)))
+                    #pred = head(anc_embed)
+                    pred = head(torch.cat((anc_chain, pos_chain), dim=-1))
                     #pred = torch.clamp(pred,min=1)
                     chain_loss = criterion(pred, targets)
+                    #expanded_targets = targets.unsqueeze(1).repeat(1,pred.size(1),1)
+                    #chain_loss = criterion(pred, expanded_targets)
+                    #chain_loss = 0
 
                 # combined multi-task loss
                 loss = triplet_loss + (loss_delta * chain_loss)
@@ -382,9 +398,11 @@ if __name__ == "__main__":
                 # accuracy predicted as all-or-nothing
                 #
                 length_pred = torch.round(pred[:,0])
+                #length_pred = torch.round(pred[:,0,0])
                 up_acc += torch.sum(length_pred == targets[:,0]).item()
 
                 length_pred = torch.round(pred[:,1])
+                #length_pred = torch.round(pred[:,0,1])
                 down_acc += torch.sum(length_pred == targets[:,1]).item()
 
                 acc = (up_acc + down_acc)/2
@@ -399,7 +417,7 @@ if __name__ == "__main__":
                     # update weights, update scheduler, and reset optimizer after a full batch is completed
                     if (batch_idx+1) % accum == 0 or batch_idx+1 == len(dataloader):
                         optimizer.step()
-                        scheduler.step()
+                        #scheduler.step()
                         for param in params:
                             param.grad = None
 

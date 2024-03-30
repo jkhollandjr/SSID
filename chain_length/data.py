@@ -5,7 +5,7 @@ from processor import DataProcessor
 from tqdm import tqdm
 import pickle
 import itertools
-import random
+from numpy import random
 
 
 class BaseDataset(data.Dataset):
@@ -184,7 +184,7 @@ class PairwiseDataset(BaseDataset):
             if self.host_only and correlated:
                 # consider only host-wise pairs if host_only is enabled
                 stream_IDs = self.data_chain_IDs[chain1_ID]
-                for i in range(len(stream_IDs)//2):
+                for i in range(0, len(stream_IDs), 2):
                     hostwise_pair = ((chain1_ID, stream_IDs[i]), (chain1_ID, stream_IDs[i+1]), correlated)
                     self.correlated_pairs.append(hostwise_pair)
 
@@ -195,27 +195,32 @@ class PairwiseDataset(BaseDataset):
                 # create all sample pairs
                 for ID1 in chain1_ID_tuples:
                     for ID2 in chain2_ID_tuples:
-                        if correlated:
+                        if correlated and ID1[1] != ID2[1]:
                             self.correlated_pairs.append((ID1, ID2, correlated))
-                        else:
+                        elif not correlated:
                             self.uncorrelated_pairs.append((ID1, ID2, correlated))
-                        #self.all_pairs.append((ID1, ID2, correlated))
 
         if sample_ratio is not None:
             random.seed(sample_seed)
             if sample_mode == 'oversample':
                 k = int(len(self.uncorrelated_pairs) * sample_ratio)
-                self.all_pairs = random.choices(self.correlated_pairs, k=k) + self.uncorrelated_pairs
+                idx = random.choice(np.arange(len(self.correlated_pairs)), size=k, replace=False)
+                self.correlated_pairs = np.array(self.correlated_pairs, dtype=object)[idx]
+                self.uncorrelated_pairs = np.array(self.uncorrelated_pairs, dtype=object)
             elif sample_mode == 'undersample':
                 k = int(len(self.correlated_pairs) * sample_ratio)
-                self.all_pairs = self.correlated_pairs + random.choices(self.uncorrelated_pairs, k=k)
+                idx = random.choice(np.arange(len(self.uncorrelated_pairs)), size=k, replace=False)
+                self.uncorrelated_pairs = np.array(self.uncorrelated_pairs, dtype=object)[idx]
+                self.correlated_pairs = np.array(self.correlated_pairs, dtype=object)
+
+            self.all_pairs = np.concatenate((self.correlated_pairs, self.uncorrelated_pairs))
 
             self.all_sample_IDs = set()
             for sample1,sample2,_ in self.all_pairs:
                 self.all_sample_IDs.add(sample1)
                 self.all_sample_IDs.add(sample2)
         else:
-            self.all_pairs = self.correlated_pairs + self.uncorrelated_pairs
+            self.all_pairs = np.array(self.correlated_pairs + self.uncorrelated_pairs, dtype=object)
             self.all_sample_IDs = self.data_ID_tuples
 
 
@@ -334,14 +339,16 @@ class TripletDataset(BaseDataset):
         neg = self.data_windows[neg_ID]
 
         # randomly select a window for the triplet
-        candidate_idx = [i for i,window in enumerate(anc) if len(window) > 0]
-        #window_idx = np.random.randint(0, len(anc)-1)
-        window_idx = np.random.choice(candidate_idx)
+        if True:
+            # ignore windows without packets
+            candidate_idx = [i for i,window in enumerate(anc) if len(window) > 0]
+            window_idx = np.random.choice(candidate_idx)
+        if False:
+            window_idx = np.random.randint(0, len(anc)-1)
 
         anc_tup = (anc[window_idx], self.data_chainlengths[anc_ID], anc_ID)
         pos_tup = (pos[window_idx], self.data_chainlengths[pos_ID], pos_ID)
         neg_tup = (neg[window_idx], self.data_chainlengths[neg_ID], neg_ID)
-        #print(len(anc_tup[0]), len(pos_tup[0]), len(neg_tup[0]))
         return anc_tup, pos_tup, neg_tup
                     
 
@@ -357,6 +364,125 @@ class TripletDataset(BaseDataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
+    @staticmethod
+    def batchify(batch):
+        """
+        convert samples to tensors and pad samples to equal length
+        """
+        # convert labels to tensor and get sequence lengths
+        #batch_anc, batch_neg, batch_pos = zip(*batch)
+        batch_anc = []
+        batch_neg = []
+        batch_pos = []
+        for i in range(len(batch)):
+            anc, pos, neg = batch[i]
+            batch_anc.append(anc)
+            batch_neg.append(neg)
+            batch_pos.append(pos)
+    
+        # batch windows for anchor, positive, and negative samples
+        batch_x_anc = [tup[0] for tup in batch_anc]
+        batch_x_pos = [tup[0] for tup in batch_pos]
+        batch_x_neg = [tup[0] for tup in batch_neg]
+        batch_x = [batch_x_anc, batch_x_pos, batch_x_neg]
+    
+        batch_y_anc = [tup[1] for tup in batch_anc]
+        batch_y_anc = torch.tensor(batch_y_anc)
+    
+        # pad and fix dimension
+        batch_x_tensors = []
+        for batch_x_n in batch_x:
+            batch_x_n = torch.nn.utils.rnn.pad_sequence(batch_x_n, batch_first=True, padding_value=0.)
+            if len(batch_x_n.shape) < 3:  # add channel dimension if missing
+                batch_x_n = batch_x_n.unsqueeze(-1)
+            batch_x_n = batch_x_n.permute(0,2,1)
+            batch_x_n = batch_x_n.float()
+            batch_x_tensors.append(batch_x_n)
+    
+        return *batch_x_tensors, batch_y_anc.long()
+
+
+class OnlineDataset(BaseDataset):
+    """
+    """
+    def __init__(self, dataset, k=2):
+        """
+        Initialize triplet dataset from an existing SSI dataset object.
+        """
+        vars(self).update(vars(dataset))  # load dataset attributes
+
+        # create and shuffle indices for samples
+        self.all_indices = np.array(list(self.data_chain_IDs.keys()))
+        np.random.shuffle(self.all_indices)
+
+        self.k = k
+
+    def __len__(self):
+        """
+        An epoch of the TripletDataset iterates over all samples within partition_1
+        """
+        return len(self.all_indices)
+
+    def __getitem__(self, index):
+        """
+        """
+        chain_ID = self.all_indices[index]
+
+        if not self.host_only:
+            # randomly sample (w/o replacement) two streams from the chain for anchor & positive (e.g. network-based SSID)
+            stream_IDs = self.data_chain_IDs[chain_ID]
+            stream_IDs = np.random.choice(stream_IDs, size=self.k, replace=False)
+        else:
+            # randomly select a pair of streams, both of which were collected on the same host (e.g. host-based SSID)
+            stream_IDs = self.data_chain_IDs[chain_ID]
+            host_num = np.random.randint(0,len(stream_IDs)//2)
+            stream_IDs = [stream_IDs[host_num], stream_IDs[host_num+1]]
+            np.random.shuffle(stream_IDs)
+
+        samples = []
+        chain_lengths = []
+        for stream_ID in stream_IDs:
+            ID = (chain_ID, stream_ID)
+            sample = self.data_windows[ID]
+            samples.append(sample)
+            chain_lengths.append(self.data_chainlengths[ID])
+
+        return samples, chain_lengths
+
+    @staticmethod
+    def batchify(batch):
+        """
+        convert samples to tensors and pad samples to equal length
+        """
+        batch_x = []
+        batch_y = []
+        chain_lengths = []
+        cur_label = 0
+        for i in range(len(batch)):
+            # add correlated samples to batch
+            batch_x.extend(batch[i][0])
+            # add label information for correlated samples
+            batch_y.extend([cur_label] * len(batch[i][0]))
+            chain_lengths.extend(batch[i][1])
+            cur_label += 1
+
+        # pick a random window to return
+        window_count = len(batch_x[0])
+        window_idx = np.random.choice(range(window_count))
+        batch_x = [x[window_idx] for x in batch_x]
+
+        # pad batches and fix dimension
+        batch_x_tensor = torch.nn.utils.rnn.pad_sequence(batch_x, 
+                                                    batch_first = True, 
+                                                    padding_value = 0.)
+        if len(batch_x_tensor.shape) < 3:  # add channel dimension if missing
+                batch_x_tensor = batch_x_n.unsqueeze(-1)
+        batch_x_tensor = batch_x_tensor.permute(0,2,1)
+        batch_x_tensor = batch_x_tensor.float()
+        batch_y_tensor = torch.tensor(batch_y)
+        chain_lengths = torch.tensor(chain_lengths)
+    
+        return batch_x_tensor, batch_y_tensor, chain_lengths
 
 
 def create_windows(times, features,
@@ -383,16 +509,20 @@ def create_windows(times, features,
     """
     window_features = []
 
+    if include_all_window:
+        window_count -= 1
+
     window_step = min(window_width - window_overlap, 1)
 
     # Create overlapping windows
-    for start in np.arange(0, stop = window_count * window_step, 
-                              step = window_step):
+    if window_count > 0:
+        for start in np.arange(0, stop = window_count * window_step, 
+                                  step = window_step):
 
-        end = start + window_width
+            end = start + window_width
 
-        window_idx = torch.where(torch.logical_and(times >= start, times < end))[0]
-        window_features.append(features[window_idx])
+            window_idx = torch.where(torch.logical_and(times >= start, times < end))[0]
+            window_features.append(features[window_idx])
 
     # add full stream as window
     if include_all_window:
