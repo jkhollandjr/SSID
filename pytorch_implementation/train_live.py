@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Sampler
 import random
 from orig_model import DFModel, DFModelWithAttention
-from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic
+from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic, calculate_cumulative_traffic_torch, calculate_inter_packet_times_torch
 import torch.nn.functional as F
 import math
 
@@ -143,7 +143,9 @@ def custom_collate_fn(batch):
         # Calculate additional features based on defended traffic
         inter_packet_times = calculate_inter_packet_times(defended_times)
         times_with_directions = calculate_times_with_directions(defended_times, defended_directions)
-        cumul = calculate_cumulative_traffic(defended_sizes, defended_times)
+        cumul = calculate_cumulative_traffic_torch(defended_sizes, defended_times)
+
+        # Consider splitting upload and download inter-packet times?
         
         # Stack all features together
         transformed_features = torch.stack([defended_sizes, inter_packet_times, times_with_directions, defended_directions, cumul], dim=1)
@@ -172,14 +174,18 @@ train_sampler = QuadrupleSampler(train_dataset)
 val_sampler = QuadrupleSampler(val_dataset)
 
 # Create the dataloaders
-batch_size = 256
-train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=custom_collate_fn, num_workers=1)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, collate_fn=custom_collate_fn, num_workers=1)
+batch_size = 64
+train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=custom_collate_fn, num_workers=8)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, collate_fn=custom_collate_fn, num_workers=8)
 
 # Instantiate the models
 embedding_size = 64
 inflow_model = DFModel()
 outflow_model = DFModel()
+
+checkpoint = torch.load('models/best_model_live_undefended_lr.pth')
+inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
+outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -196,7 +202,7 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_schedule)
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 3000
+num_epochs = 5000
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -265,5 +271,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_undefended_test.pth')
+        }, f'models/best_model_live_undefended.pth')
 
