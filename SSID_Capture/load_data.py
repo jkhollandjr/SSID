@@ -9,8 +9,6 @@ def load_ecdf_function(filename="ecdf_function.npy"):
 
     return ecdf_function
 
-#ecdf_function = load_ecdf_function("ecdf_function.npy")
-
 def transform_new_data(new_data, ecdf_func):
     if np.isscalar(new_data):
         return ecdf_func(new_data)
@@ -29,7 +27,7 @@ def boxcox_transform(value, lambda_value):
     else:
         raise ValueError("Value must be positive for Box-Cox transformation")
 
-def process(x):
+def process(x, use_cdf=False):
     """
     Simple example function to use when processing 
     """
@@ -40,10 +38,11 @@ def process(x):
     iats = np.diff(timestamps)
     iats = np.concatenate(([0], iats))
 
-    #ecdf_function = load_ecdf_function("ecdf_function.npy")
-
-    #output = [(transform_new_data(t, ecdf_function)*30, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
-    output = [(2.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
+    if use_cdf:
+        ecdf_function = load_ecdf_function("ecdf_function.npy")
+        output = [(transform_new_data(t, ecdf_function)*25, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
+    else:
+        output = [(2.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
 
     return output
 
