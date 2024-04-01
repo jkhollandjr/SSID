@@ -11,7 +11,7 @@ inflow_model = DFModel()
 outflow_model = DFModel()
 
 # Load the best models
-checkpoint = torch.load('models/best_model_ssid_live.pth')
+checkpoint = torch.load('models/best_model_base_defended.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -25,8 +25,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('data/val_inflows.npy')[:1000]
-val_outflows = np.load('data/val_outflows.npy')[:1000]
+val_inflows = np.load('data/val_inflows_base_defended.npy')[:1000]
+val_outflows = np.load('data/val_outflows_base_defended.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
@@ -91,9 +91,9 @@ def process_data(inflows, outflows, output_array):
 
 # Process and save the results
 val_output_array = process_data(val_inflows, val_outflows, val_output_array)
-np.save('data/dcf_val_distances_live.npy', val_output_array)
+np.save('data/dcf_val_distances.npy', val_output_array)
 
 test_output_array = process_data(test_inflows, test_outflows, test_output_array)
-np.save('data/dcf_test_distances_live.npy', test_output_array)
+np.save('data/dcf_test_distances.npy', test_output_array)
 
 print(val_output_array.shape)

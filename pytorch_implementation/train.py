@@ -105,11 +105,11 @@ class QuadrupleSampler(Sampler):
         return 4 * len(self.data_source)
 
 # Load the numpy arrays
-train_inflows = np.load('data/train_inflows_base.npy')
-val_inflows = np.load('data/val_inflows_base.npy')
+train_inflows = np.load('data/train_inflows_base_defended.npy')
+val_inflows = np.load('data/val_inflows_base_defended.npy')
 
-train_outflows = np.load('data/train_outflows_base.npy')
-val_outflows = np.load('data/val_outflows_base.npy')
+train_outflows = np.load('data/train_outflows_base_defended.npy')
+val_outflows = np.load('data/val_outflows_base_defended.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -172,7 +172,7 @@ for epoch in range(num_epochs):
 
         running_loss += loss.item()
 
-    train_loss = running_loss / (len(train_loader))
+    train_loss = running_loss / len(train_loader)
 
     scheduler.step()
 
@@ -198,7 +198,7 @@ for epoch in range(num_epochs):
 
             running_loss += loss.item()
 
-    val_loss = running_loss / (len(val_loader))
+    val_loss = running_loss / len(val_loader)
 
     print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
 
@@ -212,5 +212,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_base.pth')
+        }, f'models/best_model_base_defended.pth')
 

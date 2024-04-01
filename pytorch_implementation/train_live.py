@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Sampler
 import random
 from orig_model import DFModel, DFModelWithAttention
-from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic, calculate_cumulative_traffic_torch, calculate_inter_packet_times_torch
+from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic, calculate_cumulative_traffic_torch, calculate_inter_packet_times_torch, insert_dummy_packets_torch_exponential
 import torch.nn.functional as F
 import math
 
@@ -129,7 +129,7 @@ def custom_collate_fn(batch):
         for i in range(features.size(0)):
             sizes, times, directions = features[i, 0, :], features[i, 1, :], features[i, 2, :]
             # Apply dummy packet insertion
-            defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch(sizes, times, directions)
+            defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_packets=18)
             
             defended_sizes.append(defended_sizes_i.unsqueeze(0))
             defended_times.append(defended_times_i.unsqueeze(0))
@@ -271,5 +271,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_undefended.pth')
+        }, f'models/best_model_live_defended_exp.pth')
 

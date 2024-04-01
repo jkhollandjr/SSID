@@ -2,6 +2,7 @@ import numpy as np
 import torch 
 import random
 import torch.nn.functional as F
+from torch.distributions.exponential import Exponential
 import math
 
 def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
@@ -22,8 +23,15 @@ def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
 
     # Generate dummy packets
     dummy_directions = torch.randint(0, 2, (num_dummy_packets,), device=device) * 2 - 1  # Converts {0, 1} to {-1, 1}
-    dummy_sizes = torch.where(dummy_directions == -1, torch.full((num_dummy_packets,), 1514, device=device), torch.full((num_dummy_packets,), 609, device=device))
+    #dummy_sizes = torch.where(dummy_directions == -1, torch.full((num_dummy_packets,), 1514, device=device), torch.full((num_dummy_packets,), 609, device=device))
     dummy_times = torch.linspace(0, 5, num_dummy_packets, device=device)
+
+    # Generate sizes for dummy packets based on their directions
+    dummy_sizes = torch.zeros(num_dummy_packets, device=device)
+    download_mask = dummy_directions == -1
+    upload_mask = dummy_directions == 1
+    dummy_sizes[download_mask] = torch.randint(100, 1001, (download_mask.sum().item(),), device=device).float()
+    dummy_sizes[upload_mask] = torch.randint(50, 201, (upload_mask.sum().item(),), device=device).float()
 
     # Combine filtered real packets with dummy packets
     combined_sizes = torch.cat((real_sizes, dummy_sizes))
@@ -121,8 +129,14 @@ def insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_p
 
     # Generate dummy packets' directions
     dummy_directions = torch.randint(0, 2, (num_dummy_packets,), device=device) * 2 - 1  # Converts {0, 1} to {-1, 1}
-    dummy_sizes = torch.where(dummy_directions == -1, torch.full((num_dummy_packets,), 1514, device=device), torch.full((num_dummy_packets,), 609, device=device))
-    
+    #dummy_sizes = torch.where(dummy_directions == -1, torch.full((num_dummy_packets,), 1514, device=device), torch.full((num_dummy_packets,), 609, device=device))
+
+    dummy_sizes = torch.zeros(num_dummy_packets, device=device)
+    download_mask = dummy_directions == -1
+    upload_mask = dummy_directions == 1
+    dummy_sizes[download_mask] = torch.randint(100, 1001, (download_mask.sum().item(),), device=device).float()
+    dummy_sizes[upload_mask] = torch.randint(50, 201, (upload_mask.sum().item(),), device=device).float()
+
     # Calculate the parameter for the exponential distribution based on the desired number of dummy packets and total duration
     if num_dummy_packets > 0:
         lambda_param = num_dummy_packets / total_duration
@@ -130,8 +144,9 @@ def insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_p
         lambda_param = 1.0  # Default value to avoid division by zero
 
     # Generate dummy packets' times using the exponential distribution
-    scale = 1.0 / lambda_param
-    dummy_times = torch.cumsum(torch.exponential(torch.ones(num_dummy_packets, device=device) * scale), dim=0)
+    exp_dist = Exponential(rate=lambda_param)
+    dummy_times = torch.cumsum(exp_dist.sample((num_dummy_packets,)).to(device), dim=0)
+    #dummy_times = torch.cumsum(torch.exponential(torch.ones(num_dummy_packets, device=device) * scale), dim=0)
 
     # Combine filtered real packets with dummy packets
     combined_sizes = torch.cat((real_sizes, dummy_sizes))

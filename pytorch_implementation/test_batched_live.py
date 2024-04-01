@@ -4,7 +4,7 @@ from scipy.spatial.distance import cosine, euclidean
 import torch.nn.functional as F
 from orig_model import DFModel, DFModelWithAttention
 from sklearn.model_selection import train_test_split
-from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic
+from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic_torch, insert_dummy_packets_torch_exponential
 
 # Function to apply transformations and dummy packet insertion
 def transform_and_defend_features(features):
@@ -17,9 +17,7 @@ def transform_and_defend_features(features):
     for i in range(features.shape[0]):
         sizes, times, directions = features[i, 0, :], features[i, 1, :], features[i, 2, :]
         # Apply dummy packet insertion
-
-        
-        defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch(sizes, times, directions)
+        defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_packets=18)
         
         defended_sizes.append(defended_sizes_i.unsqueeze(0))
         defended_times.append(defended_times_i.unsqueeze(0))
@@ -33,7 +31,7 @@ def transform_and_defend_features(features):
     # Calculate additional features based on defended traffic
     inter_packet_times = calculate_inter_packet_times(defended_times)
     times_with_directions = calculate_times_with_directions(defended_times, defended_directions)
-    cumul = calculate_cumulative_traffic(defended_sizes, defended_times)
+    cumul = calculate_cumulative_traffic_torch(defended_sizes, defended_times)
     
     # Stack all features together
     transformed_features = torch.stack([defended_sizes, inter_packet_times, times_with_directions, defended_directions, cumul], dim=1)
@@ -46,7 +44,7 @@ outflow_model = DFModel()
 
 # Load the best models
 #checkpoint = torch.load('models/best_model_dcf_defened_0.00806727527074893.pth')
-checkpoint = torch.load('models/best_model_ssid_live.pth')
+checkpoint = torch.load('models/best_model_live_defended_exp.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 

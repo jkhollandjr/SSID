@@ -17,6 +17,27 @@ def resize_array(arr, target_size):
 
     return arr_resized
 
+def calculate_cumulative_traffic(packet_sizes, packet_times):
+    # Initialize the output array for 51.2 seconds with 0.1 second intervals
+    cumulative_traffic = np.zeros(512)
+
+    # Iterate over each packet
+    for size, time in zip(packet_sizes, packet_times):
+        # Find the index for the time step
+        index = int(time // 0.1)
+
+        # Check if the index is within the range of our array
+        if 0 <= index < len(cumulative_traffic):
+            cumulative_traffic[index] += size
+
+    # Compute the cumulative sum
+    cumulative_traffic = np.cumsum(cumulative_traffic)
+
+    # Pad the array to a length of 1000 with zeros
+    padded_cumulative_traffic = np.pad(cumulative_traffic, (0, 1000 - len(cumulative_traffic)), 'constant')
+
+    return padded_cumulative_traffic
+
 def convert_file_to_numpy(filename):
     windows = []
     with open(filename, 'r') as rf:
@@ -42,8 +63,10 @@ def convert_file_to_numpy(filename):
             times = np.array(times)
             sizes = np.array(sizes)
             directions = np.sign(sizes)
+            cumul = np.cumsum(sizes) / 1000
+            cumul = resize(array(cumul, WINDOW_SIZE))
 
-            window = np.stack([np.abs(sizes), times, directions])
+            window = np.stack([np.abs(sizes), times, directions, cumul])
             windows.append(window)
 
         if(len(packets) < WINDOW_SIZE):
@@ -56,8 +79,9 @@ def convert_file_to_numpy(filename):
         directions = np.sign(sizes)
         times = np.array(times)
         sizes = np.array(sizes)
+        cumul = calculate_cumulative_traffic(np.abs(sizes), np.abs(times))
 
-        window = np.stack([np.abs(sizes), times, directions])
+        window = np.stack([np.abs(sizes), times, directions, cumul])
         windows.append(window)
 
     return np.stack(windows)
@@ -88,8 +112,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('data/train_inflows.npy', train_inflows)
-np.save('data/val_inflows.npy', val_inflows)
-np.save('data/train_outflows.npy', train_outflows)
-np.save('data/val_outflows.npy', val_outflows)
+np.save('data/train_inflows_cumul.npy', train_inflows)
+np.save('data/val_inflows_cumul.npy', val_inflows)
+np.save('data/train_outflows_cumul.npy', train_outflows)
+np.save('data/val_outflows_cumul.npy', val_outflows)
 

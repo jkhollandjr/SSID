@@ -63,7 +63,7 @@ def convert_file_to_numpy(filename):
             # Convert to numpy arrays and create 4 representations
             times = np.array(times)
             directions = np.sign(sizes)
-            sizes = np.array(np.abs(sizes))
+            sizes = np.array(np.abs(sizes)) / 100
 
             # Handle the diff computation as described
             non_padded_diff = np.diff(times[times != 0], prepend=0)
@@ -76,7 +76,7 @@ def convert_file_to_numpy(filename):
             cusum = np.cumsum(sizes) / 1000000
             cusum = resize_array(cusum, WINDOW_SIZE)
 
-            sizes = np.where(sizes > 0, 1, -1)
+            #sizes = np.where(sizes > 0, 1, -1)
             window = np.stack([sizes, inter_packet_times, times_with_direction, directions, cusum])
             windows.append(window)
 
@@ -89,7 +89,7 @@ def convert_file_to_numpy(filename):
         # Convert to numpy arrays and create 4 representations
         directions = np.sign(sizes)
         times = np.array(times)
-        sizes = np.array(np.abs(sizes))
+        sizes = np.array(np.abs(sizes)) / 100
 
         # Handle the diff computation as described
         non_padded_diff = np.diff(times[times != 0], prepend=0)
@@ -102,7 +102,7 @@ def convert_file_to_numpy(filename):
 
         cumul = calculate_cumulative_traffic(np.abs(sizes), np.abs(times))
 
-        sizes = np.where(sizes > 0, 1, -1)
+        #sizes = np.where(sizes > 0, 1, -1)
         window = np.stack([sizes, inter_packet_times, times_with_direction, directions, cumul])
         windows.append(window)
 
@@ -120,8 +120,8 @@ def process_directory(directory):
 
     return np.stack(arrays)
 
-inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_nov30/"
-outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_nov30/"
+inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_nov30_defended/"
+outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_nov30_defended/"
 
 # Process directories
 inflow_data = process_directory(inflow_directory)
@@ -141,8 +141,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('data/train_inflows_base.npy', train_inflows)
-np.save('data/val_inflows_base.npy', val_inflows)
+np.save('data/train_inflows_base_defended.npy', train_inflows)
+np.save('data/val_inflows_base_defended.npy', val_inflows)
 
-np.save('data/train_outflows_base.npy', train_outflows)
-np.save('data/val_outflows_base.npy', val_outflows)
+np.save('data/train_outflows_base_defended.npy', train_outflows)
+np.save('data/val_outflows_base_defended.npy', val_outflows)
