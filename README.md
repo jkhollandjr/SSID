@@ -1,14 +1,15 @@
-# SSID: Stepping Stone Intrusion Detection (In Progress)
+# SSID: Stepping Stone Intrusion Detection
+
+UPDATE: The pytorch\_implementation folder contains the most improved and up-to-date version of the SSID. However, it may not be as stable as the original DeepCoFFEA codebase (described below) as new features will continue to be added.
 
 ### Description
 
 The code and techniques in the parent repository are modifications of code from **DeepCoFFEA: Improved Flow Correlation Attacks on Tor via Metric Learning and Amplification**, which can be found at: https://github.com/traffic-analysis/deepcoffea.
 
-Improvements include faster training options (online triplet loss and randomly selected triplets), streamlined preprocessing code and more sophisticad voting mechanisms (see embedding\_combination folder). 
+Improvements include faster training options (online triplet loss and randomly selected triplets), streamlined preprocessing code and more sophisticated voting mechanisms (see embedding\_combination folder). 
 
 For an online triplet learning description, see: https://omoindrot.github.io/triplet-loss. 
 
-For an adapted PyTorch implementation, see the 'pytorch\_implementation' folder. 
 
 
 ### Running the Attack 
