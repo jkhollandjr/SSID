@@ -64,7 +64,7 @@ def convert_file_to_numpy(filename):
             sizes = np.array(sizes)
             directions = np.sign(sizes)
             cumul = np.cumsum(sizes) / 1000
-            cumul = resize(array(cumul, WINDOW_SIZE))
+            cumul = resize_array(cumul, WINDOW_SIZE)
 
             window = np.stack([np.abs(sizes), times, directions, cumul])
             windows.append(window)

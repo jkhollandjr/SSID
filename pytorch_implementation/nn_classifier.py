@@ -9,16 +9,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import roc_curve
+from illustrate_timing import whether_correlated
 
 # Load the data
 val_data = np.load('data/dcf_val_distances_live.npy')
 test_data = np.load('data/dcf_test_distances_live.npy')
 
+cutoff = 28
 # Split the data into inputs and targets
-val_inputs = val_data[:, :12]
-val_targets = val_data[:, 12]
-test_inputs = test_data[:, :12]
-test_targets = test_data[:, 12]
+val_inputs = val_data[:, :cutoff]
+val_targets = val_data[:, -1]
+test_inputs = test_data[:, :cutoff]
+test_targets = test_data[:, -1]
 
 # Create PyTorch datasets
 class MyDataset(Dataset):
@@ -43,7 +45,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 class Predictor(nn.Module):
     def __init__(self):
         super(Predictor, self).__init__()
-        self.fc1 = nn.Linear(12, 64)
+        self.fc1 = nn.Linear(cutoff, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 1)
@@ -75,7 +77,7 @@ for epoch in range(num_epochs):
         inputs, targets = inputs.to(device), targets.to(device)
 
         # Forward pass
-        outputs = model(inputs)
+        outputs = model(inputs[:,:cutoff])
         loss = criterion(outputs, targets.unsqueeze(1))
 
         # Backward pass and optimization
@@ -98,13 +100,22 @@ for epoch in range(num_epochs):
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Forward pass
-            outputs = model(inputs)
+            outputs = model(inputs[:,:cutoff])
             loss = criterion(outputs, targets.unsqueeze(1))
 
             # Compute the number of correct predictions
             preds = outputs >= 0.5
             correct_predictions += (preds == targets.unsqueeze(1)).sum().item()
             total_predictions += targets.size(0)
+
+            '''
+            if(epoch == 70):
+                for i in range(64):
+                    if preds[i] == 1 and  targets.unsqueeze(1)[i] == 0:
+                        print(inputs[i,12])
+                        print(inputs[i,13])
+                        print("")
+            '''
 
             running_loss += loss.item()
 
@@ -120,6 +131,9 @@ model.eval()
 outputs_list = []
 targets_list = []
 
+inflows = np.load("data/test_inflows.npy")
+outflows = np.load("data/test_outflows.npy")
+
 # Pass the validation data through the model
 with torch.no_grad():
     for inputs, targets in val_loader:
@@ -127,7 +141,40 @@ with torch.no_grad():
         inputs, targets = inputs.to(device), targets.to(device)
 
         # Forward pass
-        outputs = model(inputs)
+        outputs = model(inputs[:,:cutoff]) #output is [64, 1]
+
+        '''
+        # Double Checking!!
+        for b in range(64):
+            inflow_index = int(inputs[b, 12].cpu().numpy())
+            outflow_index = int(inputs[b, 13].cpu().numpy())
+
+            inflow_time = inflows[inflow_index, -1, 1, :]
+            inflow_dir = inflows[inflow_index, -1, 2, :]
+            inflow_sizes = inflows[inflow_index, -1, 0, :]
+
+            outflow_time = outflows[outflow_index, -1, 1, :]
+            outflow_dir = outflows[outflow_index, -1, 2, :]
+            outflow_sizes = outflows[outflow_index, -1, 0, :]
+            print(inflow_index)
+            print(outflow_index)
+            print(inflow_time)
+            print(outflow_time)
+
+            download_proportion, qualified = whether_correlated(outflow_time*outflow_dir, inflow_time*inflow_dir, outflow_sizes, inflow_sizes)
+
+            upload_proportion, qualified = whether_correlated(outflow_time * outflow_dir * -1, inflow_time * inflow_dir * -1, outflow_sizes, inflow_sizes)
+
+            if(inflow_index == outflow_index):
+                print(inflow_index)
+                print(outflow_index)
+                print(proportion)
+                print(qualified)
+                print("")
+
+            if download_proportion < .8 or upload_proportion < .8:
+                outputs[b] = 0
+            '''
 
         # Store the outputs and targets
         outputs_list.extend(outputs.cpu().numpy())

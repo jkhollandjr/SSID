@@ -129,7 +129,7 @@ def custom_collate_fn(batch):
         for i in range(features.size(0)):
             sizes, times, directions = features[i, 0, :], features[i, 1, :], features[i, 2, :]
             # Apply dummy packet insertion
-            defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_packets=18)
+            defended_sizes_i, defended_times_i, defended_directions_i = insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_packets=0)
             
             defended_sizes.append(defended_sizes_i.unsqueeze(0))
             defended_times.append(defended_times_i.unsqueeze(0))
@@ -160,11 +160,11 @@ def custom_collate_fn(batch):
 
 
 # Load the numpy arrays
-train_inflows = np.load('data/train_inflows.npy')
-val_inflows = np.load('data/val_inflows.npy')
+train_inflows = np.load('data/train_inflows_cumul.npy')
+val_inflows = np.load('data/val_inflows_cumul.npy')
 
-train_outflows = np.load('data/train_outflows.npy')
-val_outflows = np.load('data/val_outflows.npy')
+train_outflows = np.load('data/train_outflows_cumul.npy')
+val_outflows = np.load('data/val_outflows_cumul.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -183,9 +183,11 @@ embedding_size = 64
 inflow_model = DFModel()
 outflow_model = DFModel()
 
+'''
 checkpoint = torch.load('models/best_model_live_undefended_lr.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
+'''
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -271,5 +273,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_defended_exp.pth')
+        }, f'models/best_model_live.pth')
 
