@@ -9,7 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import roc_curve
-from illustrate_timing import whether_correlated
 
 # Load the data
 val_data = np.load('data/dcf_val_distances_espresso_live.npy')
