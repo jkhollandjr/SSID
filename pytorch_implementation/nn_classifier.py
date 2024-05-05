@@ -12,10 +12,10 @@ from sklearn.metrics import roc_curve
 from illustrate_timing import whether_correlated
 
 # Load the data
-val_data = np.load('data/dcf_val_distances_live.npy')
-test_data = np.load('data/dcf_test_distances_live.npy')
+val_data = np.load('data/dcf_val_distances_espresso_live.npy')
+test_data = np.load('data/dcf_test_distances_espresso_live.npy')
 
-cutoff = 28
+cutoff = 92
 # Split the data into inputs and targets
 val_inputs = val_data[:, :cutoff]
 val_targets = val_data[:, -1]
@@ -67,7 +67,7 @@ criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
 # Training loop
-num_epochs = 75
+num_epochs = 50
 for epoch in range(num_epochs):
     # Training
     model.train()
@@ -108,15 +108,6 @@ for epoch in range(num_epochs):
             correct_predictions += (preds == targets.unsqueeze(1)).sum().item()
             total_predictions += targets.size(0)
 
-            '''
-            if(epoch == 70):
-                for i in range(64):
-                    if preds[i] == 1 and  targets.unsqueeze(1)[i] == 0:
-                        print(inputs[i,12])
-                        print(inputs[i,13])
-                        print("")
-            '''
-
             running_loss += loss.item()
 
     val_loss = running_loss / len(val_loader)
@@ -142,39 +133,6 @@ with torch.no_grad():
 
         # Forward pass
         outputs = model(inputs[:,:cutoff]) #output is [64, 1]
-
-        '''
-        # Double Checking!!
-        for b in range(64):
-            inflow_index = int(inputs[b, 12].cpu().numpy())
-            outflow_index = int(inputs[b, 13].cpu().numpy())
-
-            inflow_time = inflows[inflow_index, -1, 1, :]
-            inflow_dir = inflows[inflow_index, -1, 2, :]
-            inflow_sizes = inflows[inflow_index, -1, 0, :]
-
-            outflow_time = outflows[outflow_index, -1, 1, :]
-            outflow_dir = outflows[outflow_index, -1, 2, :]
-            outflow_sizes = outflows[outflow_index, -1, 0, :]
-            print(inflow_index)
-            print(outflow_index)
-            print(inflow_time)
-            print(outflow_time)
-
-            download_proportion, qualified = whether_correlated(outflow_time*outflow_dir, inflow_time*inflow_dir, outflow_sizes, inflow_sizes)
-
-            upload_proportion, qualified = whether_correlated(outflow_time * outflow_dir * -1, inflow_time * inflow_dir * -1, outflow_sizes, inflow_sizes)
-
-            if(inflow_index == outflow_index):
-                print(inflow_index)
-                print(outflow_index)
-                print(proportion)
-                print(qualified)
-                print("")
-
-            if download_proportion < .8 or upload_proportion < .8:
-                outputs[b] = 0
-            '''
 
         # Store the outputs and targets
         outputs_list.extend(outputs.cpu().numpy())
