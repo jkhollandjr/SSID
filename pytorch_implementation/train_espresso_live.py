@@ -123,19 +123,6 @@ class TripletDataset(Dataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
-class CosineTripletLossEspressoAlt(nn.Module):
-    def __init__(self, margin=0.1):
-        super(CosineTripletLossEspressoAlt, self).__init__()
-        self.margin = margin
-        self.cosine_sim = nn.CosineSimilarity(dim=2, eps=1e-6)
-
-    def forward(self, anchor, positive, negative):
-        # anchor, positive, negative are now expected to be [batch_size, embedding_size, sequence_length]
-        pos_sim = self.cosine_sim(anchor, positive)  # [64, 114]
-        neg_sim = self.cosine_sim(anchor, negative)  # [64, 114]
-        loss = F.relu(neg_sim - pos_sim + self.margin).mean(dim=1)  # Mean over sequence
-        return loss.mean()  # Mean over batch
-
 class CosineTripletLossEspresso(nn.Module):
     def __init__(self, margin=0.1):
         super(CosineTripletLoss, self).__init__()
@@ -341,5 +328,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_espresso_loss.pth')
+        }, f'models/best_model_live_espresso_single.pth')
 
