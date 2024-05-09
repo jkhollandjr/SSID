@@ -9,7 +9,6 @@ import os
 from os.path import join
 import pickle as pkl
 from tqdm import tqdm
-from torchvision import transforms, utils
 import transformers
 import scipy
 import json
@@ -18,9 +17,9 @@ import argparse
 from torch.utils.data import DataLoader
 
 #from chaindf import DFNet
-from transdfnet import DFNet
-from data import BaseDataset
-from processor import DataProcessor
+from utils.nets.transdfnet import DFNet
+from utils.data import BaseDataset
+from utils.processor import DataProcessor
 
 
 

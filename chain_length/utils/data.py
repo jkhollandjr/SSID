@@ -1,11 +1,37 @@
 import numpy as np
 import torch
 from torch.utils import data
-from processor import DataProcessor
+from utils.processor import DataProcessor
 from tqdm import tqdm
 import pickle
 import itertools
 from numpy import random
+
+
+def check_filter(idx, idx_rev, upper, lower, ends_only):
+    # filter out streams that does not match range criteria
+    if ends_only:
+        # select only lower and upper indices
+        low_bound_1 = lower >= 0 and idx != lower
+        low_bound_2 = lower < 0 and idx_rev != lower
+
+        up_bound_1 = upper >= 0 and idx != upper
+        up_bound_2 = upper < 0 and idx_rev != upper
+
+        low_bound = low_bound_1 or low_bound_2
+        up_bound = up_bound_1 or up_bound_2
+        return low_bound and up_bound
+    else:
+        # select any idx between (inclusive) lower and upper indices
+        low_bound_1 = lower >= 0 and idx < lower     # less than lower
+        low_bound_2 = lower < 0 and idx_rev > lower  # rev is greater than lower
+
+        up_bound_1 = upper >= 0 and idx > upper     # greater than upper
+        up_bound_2 = upper < 0 and idx_rev < upper  # rev is less than upper
+
+        low_bound = low_bound_1 or low_bound_2
+        up_bound = up_bound_1 or up_bound_2
+        return low_bound or up_bound
 
 
 class BaseDataset(data.Dataset):
@@ -28,6 +54,7 @@ class BaseDataset(data.Dataset):
                        sample_idx = None,
                        window_kwargs = dict(),
                        stream_ID_range = (0, float('inf')),
+                       ends_only = False,
                        host_only = False,
                        preproc_feats = False,
                        ):
@@ -41,10 +68,14 @@ class BaseDataset(data.Dataset):
         stream_processor : DataProcessor
             The processor object that convert raw samples into their feature representations.
         window_kwargs : dict
-            Dictionary containing the keyword arguments for the window processing function
+            Dictionary containing the keyword arguments for the window processing function.
         stream_ID_range : 2-tuple
             Tuple of int or floats that can be used to control the stream hops loaded.
             First value is lower range. Second value is upper range (inclusive).
+        ends_only : bool
+            If True, select only the ends of stream_ID_range.
+        host_only : bool
+            If True, use host-only configuration (positive pairs were captured on the same host).
         preproc_feats : bool
             If True, the data processor will be applied on samples before windowing.
         """
@@ -70,14 +101,14 @@ class BaseDataset(data.Dataset):
             stream_ID_list = []
 
             # enumerate each stream in the chain
-            # Note: streams are expected to be ordered
+            # Note: streams are expected to be ordered from attacker (0) to stepping-stones (1<->(n-1)) to victim (n)
             for stream_ID, stream in enumerate(chain):
-                if (stream_ID_range[0] > 0 and stream_ID < stream_ID_range[0]) or \
-                        (stream_ID_range[0] < 0 and (stream_ID - len(chain)) < stream_ID_range[0]): 
-                    continue
-                if (stream_ID_range[1] > 0 and stream_ID > stream_ID_range[1]) or \
-                        (stream_ID_range[1] < 0 and (stream_ID - len(chain)) > stream_ID_range[1]): 
-                    continue
+
+                # filter out 
+                filtered = check_filter(idx = stream_ID, idx_rev = stream_ID - len(chain), 
+                                            lower = stream_ID_range[0], upper = stream_ID_range[1],
+                                            ends_only = ends_only)
+                if filtered: continue
 
                 # sample ID definitions
                 sample_ID = (chain_ID, stream_ID)
@@ -99,7 +130,7 @@ class BaseDataset(data.Dataset):
                         # create multi-channel feature representation of windows independently
                         for i in range(len(windows)):
                             if len(windows[i]) <= 0:
-                                windows[i] = torch.empty((0,stream_processor.input_channels))
+                                windows[i] = torch.empty((0, stream_processor.input_channels))
                             else:
                                 windows[i] = stream_processor(windows[i])
 
@@ -173,7 +204,6 @@ class PairwiseDataset(BaseDataset):
         self.correlated_pairs = []
         self.uncorrelated_pairs = []
         for chain1_ID, chain2_ID in self.all_combos:
-
             # build all possible pairs of streams between the two chains
 
             if chain1_ID == chain2_ID:
@@ -195,8 +225,10 @@ class PairwiseDataset(BaseDataset):
                 # create all sample pairs
                 for ID1 in chain1_ID_tuples:
                     for ID2 in chain2_ID_tuples:
+                        # if correlated, don't include same-stream pairs
                         if correlated and ID1[1] != ID2[1]:
                             self.correlated_pairs.append((ID1, ID2, correlated))
+                        # no additional filtering needed on uncorrelated pairs
                         elif not correlated:
                             self.uncorrelated_pairs.append((ID1, ID2, correlated))
 
@@ -475,8 +507,6 @@ class OnlineDataset(BaseDataset):
         batch_x_tensor = torch.nn.utils.rnn.pad_sequence(batch_x, 
                                                     batch_first = True, 
                                                     padding_value = 0.)
-        if len(batch_x_tensor.shape) < 3:  # add channel dimension if missing
-                batch_x_tensor = batch_x_n.unsqueeze(-1)
         batch_x_tensor = batch_x_tensor.permute(0,2,1)
         batch_x_tensor = batch_x_tensor.float()
         batch_y_tensor = torch.tensor(batch_y)

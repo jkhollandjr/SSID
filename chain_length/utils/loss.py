@@ -71,20 +71,27 @@ class OnlineCosineTripletLoss(nn.Module):
         embeddings = embeddings / norms  # Divide by norms to normalize
         
         # Compute pairwise cosine similarity
-        all_sim = torch.mm(embeddings, embeddings.t())
+        if embeddings.dim() == 2:
+            all_sim = torch.mm(embeddings, embeddings.t())
+        elif embeddings.dim() == 3:
+            all_sim = torch.matmul(embeddings.permute(1,0,2), embeddings.permute(1,2,0))
 
+        # mask of valid triplets
         mask = self._get_triplet_mask(labels).float()
 
-        anc_pos_sim = all_sim.unsqueeze(2)
-        anc_neg_sim = all_sim.unsqueeze(1)
+        # expand dims for pairwise comparison
+        anc_pos_sim = all_sim.unsqueeze(-1)
+        anc_neg_sim = all_sim.unsqueeze(-2)
 
-        loss = F.relu((-1*anc_pos_sim) - (-1*anc_neg_sim) + self.margin) * mask
+        loss = F.relu(anc_neg_sim - anc_pos_sim + self.margin) * mask
 
         # calculate average loss (disregarding invalid & easy triplets)
         if self.semihard:
-            loss = torch.sum(loss) / (torch.gt(loss, 1e-16).float().sum() + 1e-16)
+            loss = loss.sum() / (torch.gt(loss, 1e-16).float().sum() + 1e-16)
         else:
-            loss = loss.sum() / torch.sum(mask)
+            loss = loss.sum() / mask.sum()
+            if embeddings.dim() == 3:  # scale loss to fix additional window dim
+                loss *= all_sim.size(0)
 
         return loss
 
@@ -133,14 +140,17 @@ class OnlineHardCosineTripletLoss(nn.Module):
         embeddings = embeddings / norms  # Divide by norms to normalize
         
         # Compute pairwise cosine similarity
-        all_sim = torch.mm(embeddings, embeddings.t())
+        if embeddings.dim() == 2:
+            all_sim = torch.mm(embeddings, embeddings.t())
+        elif embeddings.dim() == 3:
+            all_sim = torch.matmul(embeddings.permute(1,0,2), embeddings.permute(1,2,0))
+            all_sim = all_sim.mean(0)
 
         # find hardest positive pairs (when positive has low sim)
         # mask of all valid positives
         mask_anc_pos = self._get_anc_pos_triplet_mask(labels)
-        # prevent invalid pos by increasing sim to above 1
-        anc_pos_sim = all_sim# + (~mask_anc_pos).float()
-        anc_pos_sim[~mask_anc_pos] = 1.
+        # prevent invalid pos by increasing sim
+        anc_pos_sim = all_sim + (~mask_anc_pos * 999).float()
         # select minimum sim positives
         hardest_pos_sim = anc_pos_sim.min(dim=1, keepdim=True)[0]
 

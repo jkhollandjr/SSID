@@ -9,7 +9,6 @@ import os
 from os.path import join
 import pickle as pkl
 from tqdm import tqdm
-from torchvision import transforms, utils
 import transformers
 import scipy
 import json
@@ -17,12 +16,12 @@ import time
 import argparse
 from torch.utils.data import DataLoader
 
-from transdfnet import DFNet
-from espresso import EspressoNet
-from layers import Mlp
-from processor import DataProcessor
-from data import *
-from loss import *
+from utils.nets.transdfnet import DFNet
+from utils.nets.espressonet import EspressoNet
+from utils.layers import Mlp
+from utils.processor import DataProcessor
+from utils.data import *
+from utils.loss import *
 
 
 

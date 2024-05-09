@@ -9,19 +9,19 @@ import os
 from os.path import join
 import pickle as pkl
 from tqdm import tqdm
-from torchvision import transforms, utils
 import transformers
 import scipy
 import json
 import time
 import argparse
 from torch.utils.data import DataLoader
+import sys
 
 #from transdfnet import DFNet
-from espresso import EspressoNet
-from layers import Mlp
-from data import BaseDataset, TripletDataset, PairwiseDataset
-from processor import DataProcessor
+from utils.nets.espressonet import EspressoNet
+from utils.layers import Mlp
+from utils.data import BaseDataset, TripletDataset, PairwiseDataset
+from utils.processor import DataProcessor
 from sklearn.metrics.pairwise import pairwise_distances
 
 
@@ -93,6 +93,7 @@ if __name__ == "__main__":
         #fen = DFNet(feature_dim, len(features),
         #            **model_config)
         fen = EspressoNet(len(features), 
+                          special_toks = 1,
                           **model_config)
         fen = fen.to(device)
         fen_state_dict = resumed['fen']
@@ -101,11 +102,11 @@ if __name__ == "__main__":
 
         # chain length prediction head
         #head = Mlp(dim=feature_dim*2, out_features=2)
-        head = Mlp(dim=feature_dim, out_features=2)
-        head = head.to(device)
-        head_state_dict = resumed['chain_head']
-        head.load_state_dict(head_state_dict)
-        head.eval()
+        #head = Mlp(dim=feature_dim, out_features=2)
+        #head = head.to(device)
+        #head_state_dict = resumed['chain_head']
+        #head.load_state_dict(head_state_dict)
+        #head.eval()
 
         # # # # # #
         # create data loaders
@@ -129,8 +130,10 @@ if __name__ == "__main__":
                             window_kwargs = window_kwargs,
                             preproc_feats = False,
                             sample_idx = va_idx,
-                            host_only = True,
+                            ends_only = True,
+                            #host_only = True,
                             #stream_ID_range = (1,float('inf'))
+                            stream_ID_range = (1,-1),
                             #stream_ID_range = (0,1)
                             )
         va_data = PairwiseDataset(va_data,
@@ -144,13 +147,15 @@ if __name__ == "__main__":
                             window_kwargs = window_kwargs,
                             preproc_feats = False,
                             sample_idx = te_idx,
-                            host_only = True,
+                            ends_only = True,
+                            #host_only = True,
                             #stream_ID_range = (1,float('inf')),
+                            stream_ID_range = (1,-1),
                             #stream_ID_range = (0,1)
                             )
         te_data = PairwiseDataset(te_data, 
-                                  sample_mode = 'undersample',
-                                  sample_ratio = 400
+                                  #sample_mode = 'undersample',
+                                  #sample_ratio = 1000
                 )
         te_ratio = len(te_data.uncorrelated_pairs) / len(te_data.correlated_pairs)
         print(f'Te. data ratio: {te_ratio}')
@@ -238,24 +243,24 @@ if __name__ == "__main__":
     val_dataset = MyDataset(test_inputs, test_targets)
     
     # Create PyTorch dataloaders
-    batch_size = 128
+    batch_size = 256
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     class Predictor(nn.Module):
-        def __init__(self, dim, drop=0.5, ratio=4, layers=3):
+        def __init__(self, dim, drop=0.7, ratio=0.5, layers=3):
             super(Predictor, self).__init__()
             modules = []
             for i in range(layers):
                 fc = nn.Sequential(
-                        nn.Linear(dim, dim*ratio) if i == 0 else nn.Linear(dim*ratio, dim*ratio),
+                        nn.Linear(dim, int(dim*ratio)) if i == 0 else nn.Linear(int(dim*ratio), int(dim*ratio)),
                         nn.GELU(),
-                        nn.BatchNorm1d(dim*ratio),
+                        #nn.BatchNorm1d(dim*ratio),
                         )
                 modules.append(fc)
 
             self.fc_modules = nn.ModuleList(modules)
-            self.pred = nn.Linear(dim*ratio, 1)
+            self.pred = nn.Linear(int(dim*ratio), 1)
             self.dropout = nn.Dropout(drop)
     
         def forward(self, x):
@@ -269,7 +274,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    num_epochs = 200
+    num_epochs = 50
     
     # Define the loss function and the optimizer
     criterion = nn.BCELoss()
@@ -331,7 +336,8 @@ if __name__ == "__main__":
             targets_list.extend(targets.cpu().numpy())
     
     # Compute the ROC curve
-    fpr, tpr, thresholds = metrics.roc_curve(targets_list, outputs_list)
+    fpr, tpr, thresholds = metrics.roc_curve(targets_list, outputs_list, 
+                                             drop_intermediate=False)
     roc_auc = metrics.auc(fpr, tpr)
     
     import matplotlib.pyplot as plt
@@ -339,7 +345,8 @@ if __name__ == "__main__":
     plt.plot(fpr, tpr, 'b', label = 'AUC = %0.6f' % roc_auc)
     plt.legend(loc = 'lower right')
     #plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.000001, .1])
+    plt.xlim([1e-6, .1])
+    #plt.xlim([0, 1e-3])
     plt.ylim([0, 1])
     plt.ylabel('True Positive Rate')
     plt.xlabel('False Positive Rate')

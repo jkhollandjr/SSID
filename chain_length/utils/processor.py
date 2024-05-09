@@ -211,7 +211,7 @@ class DataProcessor:
         if self._is_enabled('up_rates_sparse'):
             sparse_up_rate = torch.zeros_like(times)
             sparse_up_rate[upload] = up_rates
-            feature_dict['up_rates_sparse'] = sparse_up_rates
+            feature_dict['up_rates_sparse'] = sparse_up_rate
 
         if self._is_enabled('up_rates_decayed'):
             up_rates_decay = weighted_rate_estimator(upload_iats)
@@ -226,7 +226,7 @@ class DataProcessor:
         if self._is_enabled('down_rates_sparse'):
             sparse_down_rate = torch.zeros_like(times)
             sparse_down_rate[download] = down_rates
-            feature_dict['down_rates_sparse'] = sparse_down_rates
+            feature_dict['down_rates_sparse'] = sparse_down_rate
 
         if self._is_enabled('down_rates_decayed'):
             down_rates_decay = weighted_rate_estimator(download_iats)

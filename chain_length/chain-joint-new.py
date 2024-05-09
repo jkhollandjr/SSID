@@ -9,7 +9,6 @@ import os
 from os.path import join
 import pickle as pkl
 from tqdm import tqdm
-from torchvision import transforms, utils
 import transformers
 import scipy
 import json
@@ -17,12 +16,12 @@ import time
 import argparse
 from torch.utils.data import DataLoader
 
-from transdfnet import DFNet
-from espresso import EspressoNet
-from layers import Mlp
-from processor import DataProcessor
-from data import *
-from loss import *
+from utils.nets.transdfnet import DFNet
+from utils.nets.espressonet import EspressoNet
+from utils.layers import Mlp
+from utils.processor import DataProcessor
+from utils.data import *
+from utils.loss import *
 
 
 
@@ -68,9 +67,12 @@ def parse_args():
     parser.add_argument('--online', 
                         default=False, action='store_true',
                         help = "Use online semi-hard triplet mining.")
-    parser.add_argument('--loss_margin', default=0.1, type=float,
+    parser.add_argument('--hard', 
+                        default=False, action='store_true',
+                        help = "Use hard triplet mining.")
+    parser.add_argument('--loss_margin', default=0.5, type=float,
                         help = "Loss margin for triplet learning.")
-    parser.add_argument('--w', default=0.1,
+    parser.add_argument('--w', default=0.0,
                         help = "Weight placed on the chain-loss of multi-task loss.")
 
     # Model architecture options
@@ -117,8 +119,8 @@ if __name__ == "__main__":
     batch_size = 64        # when to update model
     accum = batch_size // mini_batch_size
     # # # # # #
-    warmup_period   = 10
-    ckpt_period     = 100
+    warmup_period   = 2
+    ckpt_period     = 20
     epochs          = 1000
     opt_lr          = 1e-3
     opt_betas       = (0.9, 0.999)
@@ -126,6 +128,7 @@ if __name__ == "__main__":
     save_best_epoch = True
     loss_margin = args.loss_margin
     loss_delta = float(args.w)
+    multitask = True
 
     # all trainable network parameters
     params = []
@@ -159,7 +162,7 @@ if __name__ == "__main__":
                     "kernel_size": 3,
                     "stride": 2,
                     "feedforward_style": "mlp",
-                    "feedforward_ratio": 4,
+                    "feedforward_ratio": 12,
                     "feedforward_drop": 0.0
                 },
                 "features": [
@@ -193,7 +196,7 @@ if __name__ == "__main__":
 
     # traffic feature extractor
     fen = EspressoNet(len(features),
-                special_toks = 1,
+                special_toks = 1 if multitask else 0,
                 **model_config)
     fen = fen.to(device)
     if resumed:
@@ -202,7 +205,7 @@ if __name__ == "__main__":
     params += fen.parameters()
 
     # chain length prediction head
-    head = Mlp(dim=feature_dim*2, out_features=2)
+    head = Mlp(dim=feature_dim, out_features=2)
     head = head.to(device)
     if resumed:
         head_state_dict = resumed['chain_head']
@@ -231,13 +234,13 @@ if __name__ == "__main__":
     te_idx = np.arange(0,1000)
     va_idx = np.arange(1000,2000)
     tr_idx = np.arange(2000,10000)
-    #tr_idx = np.arange(2000,4000)
+    #tr_idx = np.arange(200,400)
 
     # stream window definitions
     window_kwargs = model_config['window_kwargs']
     data_kwargs = {
-            'host_only': True,
-            #'stream_ID_range': (1,float('inf')),
+            #'host_only': True,
+            'stream_ID_range': (1,float('inf')),
             #'stream_ID_range': (0,1),
             }
 
@@ -287,15 +290,12 @@ if __name__ == "__main__":
     last_epoch = -1
     if resumed and resumed['epoch']:    # if resuming from a finetuning checkpoint
         last_epoch = resumed['epoch']
-
-    """
     scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, 
                                                                 num_warmup_steps = warmup_period * len(trainloader), 
                                                                 num_training_steps = epochs * len(trainloader), 
                                                                 num_cycles = epochs // ckpt_period,
                                                                 #last_epoch = last_epoch * len(trainloader) if last_epoch
                                                                 )
-    """
 
     # define checkpoint fname if not provided
     if not checkpoint_fname:
@@ -318,8 +318,11 @@ if __name__ == "__main__":
     #criterion = nn.MSELoss()
     criterion = nn.SmoothL1Loss(beta=1.0)
     if args.online:
-        triplet_criterion = OnlineCosineTripletLoss(margin=loss_margin,
-                                                    semihard=False)
+        if args.hard:
+            triplet_criterion = OnlineHardCosineTripletLoss(margin=loss_margin)
+        else:
+            triplet_criterion = OnlineCosineTripletLoss(margin=loss_margin,
+                                                        semihard=True)
     else:
         triplet_criterion = CosineTripletLoss(margin=loss_margin)
 
@@ -350,12 +353,13 @@ if __name__ == "__main__":
                     labels = labels.to(device)
                     targets = targets.to(device)
 
-                    embed = fen(inputs)
+                    embed, chain = fen(inputs, return_toks=multitask)
 
                     triplet_loss = triplet_criterion(embed, labels)
                     trip_loss += triplet_loss.item()
 
-                    pred = head(embed)
+                    pred = head(chain)
+                    #pred = torch.clamp(pred,min=1)
                     chain_loss = criterion(pred, targets)
 
 
@@ -369,26 +373,18 @@ if __name__ == "__main__":
 
                     # # # # # #
                     # generate traffic feature vectors & run triplet loss
-                    anc_embed, anc_chain = fen(inputs_anc)
-                    pos_embed, pos_chain = fen(inputs_pos)
-                    neg_embed, neg_chain = fen(inputs_neg)
-                    #anc_embed = fen(inputs_anc).mean(dim=-1)
-                    #pos_embed = fen(inputs_pos).mean(dim=-1)
-                    #neg_embed = fen(inputs_neg).mean(dim=-1)
+                    anc_embed, anc_chain = fen(inputs_anc, return_toks=multitask)
+                    pos_embed, pos_chain = fen(inputs_pos, return_toks=multitask)
+                    neg_embed, neg_chain = fen(inputs_neg, return_toks=multitask)
                     triplet_loss = triplet_criterion(anc_embed, pos_embed, neg_embed)
                     trip_loss += triplet_loss.item()
 
                     # # # # #
                     # predict chain length with head & run loss
-                    #pred = head(torch.cat((anc_embed, pos_embed), dim=-1))
-                    #pred = head(anc_embed.permute((0,2,1)))
-                    #pred = head(anc_embed)
-                    pred = head(torch.cat((anc_chain, pos_chain), dim=-1))
+                    #pred = head(torch.cat((anc_chain, pos_chain), dim=-1))
+                    pred = head(anc_chain)
                     #pred = torch.clamp(pred,min=1)
                     chain_loss = criterion(pred, targets)
-                    #expanded_targets = targets.unsqueeze(1).repeat(1,pred.size(1),1)
-                    #chain_loss = criterion(pred, expanded_targets)
-                    #chain_loss = 0
 
                 # combined multi-task loss
                 loss = triplet_loss + (loss_delta * chain_loss)
@@ -417,7 +413,7 @@ if __name__ == "__main__":
                     # update weights, update scheduler, and reset optimizer after a full batch is completed
                     if (batch_idx+1) % accum == 0 or batch_idx+1 == len(dataloader):
                         optimizer.step()
-                        #scheduler.step()
+                        scheduler.step()
                         for param in params:
                             param.grad = None
 
@@ -430,9 +426,9 @@ if __name__ == "__main__":
                                   })
                 pbar.set_description(desc)
 
-        tot_loss /= batch_idx + 1
+        trip_loss /= batch_idx + 1
         acc /= n
-        return tot_loss
+        return trip_loss
 
 
     # do training

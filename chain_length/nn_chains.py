@@ -17,10 +17,10 @@ import time
 import argparse
 from torch.utils.data import DataLoader, Dataset
 
-from transdfnet import DFNet
-from layers import Mlp
-from data import BaseDataset, TripletDataset, PairwiseDataset
-from processor import DataProcessor
+from utils.nets.transdfnet import DFNet
+from utils.layers import Mlp
+from utils.data import BaseDataset, TripletDataset, PairwiseDataset
+from utils.processor import DataProcessor
 from sklearn.metrics.pairwise import pairwise_distances
 
 

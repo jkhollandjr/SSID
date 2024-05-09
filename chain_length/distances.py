@@ -9,7 +9,6 @@ import os
 from os.path import join
 import pickle as pkl
 from tqdm import tqdm
-from torchvision import transforms, utils
 import transformers
 import scipy
 import json
@@ -17,10 +16,10 @@ import time
 import argparse
 from torch.utils.data import DataLoader
 
-from transdfnet import DFNet
-from layers import Mlp
-from data import BaseDataset, TripletDataset, PairwiseDataset
-from processor import DataProcessor
+from utils.nets.transdfnet import DFNet
+from utils.layers import Mlp
+from utils.data import BaseDataset, TripletDataset, PairwiseDataset
+from utils.processor import DataProcessor
 from sklearn.metrics.pairwise import pairwise_distances
 
 
@@ -118,8 +117,8 @@ if __name__ == "__main__":
                         preproc_feats = False,
                         #preproc_feats = True,
                         sample_idx = va_idx,
-                        host_only = True,
-                        #stream_ID_range = (1,float('inf'))
+                        #host_only = True,
+                        stream_ID_range = (1,float('inf'))
                         #stream_ID_range = (0,1)
                         )
     va_data = PairwiseDataset(va_data,
@@ -132,8 +131,8 @@ if __name__ == "__main__":
                         preproc_feats = False,
                         #preproc_feats = True,
                         sample_idx = te_idx,
-                        host_only = True,
-                        #stream_ID_range = (1,float('inf')),
+                        #host_only = True,
+                        stream_ID_range = (1,float('inf')),
                         #stream_ID_range = (0,1)
                         )
     te_data = PairwiseDataset(te_data, 

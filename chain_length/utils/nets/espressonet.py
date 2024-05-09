@@ -4,10 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from layers import *
-from transdfnet import TransformerBlock
+from utils.layers import *
+from utils.nets.transdfnet import TransformerBlock
 from functools import partial
-from timm.layers import trunc_normal_, DropPath
 
 
 DEFAULT_IN_CONV_KWARGS = {
@@ -31,6 +30,7 @@ class EspressoNet(nn.Module):
                        feature_dim = 64,
                        special_toks = 0,
                        mhsa_kwargs = {},
+                       head_ratio = 4,
                        input_conv_kwargs = DEFAULT_IN_CONV_KWARGS,
                        output_conv_kwargs = DEFAULT_OUT_CONV_KWARGS,
                     **kwargs):
@@ -52,6 +52,7 @@ class EspressoNet(nn.Module):
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
         self.special_toks = special_toks
+        self.head_ratio = head_ratio
 
         if self.special_toks > 0:
             toks = nn.init.xavier_uniform_(torch.empty(self.hidden_dim, self.special_toks))
@@ -80,17 +81,19 @@ class EspressoNet(nn.Module):
 
         self.blocks = nn.ModuleList(block_list)
 
-        self.windowing = nn.Conv1d(self.hidden_dim, self.hidden_dim * 4,
+        self.windowing = nn.Conv1d(self.hidden_dim, self.hidden_dim * self.head_ratio,
+                                   groups = self.hidden_dim,
                                    **self.output_conv_kwargs)
 
         self.pred = nn.Sequential(
                 nn.GELU(),
-                nn.LayerNorm(self.hidden_dim * 4),
-                nn.Linear(self.hidden_dim * 4, self.feature_dim),
+                nn.LayerNorm(self.hidden_dim * self.head_ratio),
+                nn.Linear(self.hidden_dim * self.head_ratio, self.feature_dim),
                 )
 
     def forward(self, x, 
             sample_sizes = None,
+            return_toks = False,
             *args, **kwargs):
         """forward input features through the model
         """
@@ -135,7 +138,7 @@ class EspressoNet(nn.Module):
         x = self.windowing(x).permute(0,2,1)
         pred_windows = self.pred(x).permute(0,2,1)
 
-        if self.special_toks > 0:
+        if self.special_toks > 0 and return_toks:
             return pred_windows, special_toks_out.flatten(start_dim=1)
         else:
             return pred_windows
