@@ -19,13 +19,13 @@ total_vot = 0
 total_cos = 0
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-test', default='decaf_filtered/5_test11addn2_w_superpkt.npz')
+parser.add_argument('-test', default='inflow/5_test11addn2_w_superpkt.npz')
 parser.add_argument('-flow', default=1000)
 parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
 parser.add_argument('-model1', default='models/model1_best')
 parser.add_argument('-model2', default='models/model2_best')
-parser.add_argument('-output', default="decaf_filtered.csv")
+parser.add_argument('-output', default="inflow.csv")
 args = parser.parse_args()
 
 def get_session(gpu_fraction=0.85):

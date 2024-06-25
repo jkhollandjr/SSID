@@ -148,7 +148,7 @@ def custom_collate_fn(batch):
         # Consider splitting upload and download inter-packet times?
         
         # Stack all features together
-        transformed_features = torch.stack([defended_sizes, inter_packet_times, times_with_directions, defended_directions, cumul], dim=1)
+        transformed_features = torch.stack([defended_sizes, inter_packet_times, times_with_directions, cumul], dim=1)
         return transformed_features
 
     # Apply transformations and defense mechanism
@@ -160,11 +160,11 @@ def custom_collate_fn(batch):
 
 
 # Load the numpy arrays
-train_inflows = np.load('data/train_inflows_cumul.npy')
-val_inflows = np.load('data/val_inflows_cumul.npy')
+train_inflows = np.load('data/train_inflows_detorrent.npy')
+val_inflows = np.load('data/val_inflows_detorrent.npy')
 
-train_outflows = np.load('data/train_outflows_cumul.npy')
-val_outflows = np.load('data/val_outflows_cumul.npy')
+train_outflows = np.load('data/train_outflows_detorrent.npy')
+val_outflows = np.load('data/val_outflows_detorrent.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -196,7 +196,9 @@ outflow_model.to(device)
 
 # Define the loss function and the optimizer
 criterion = CosineTripletLoss()
-optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001)
+#optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001)
+weight_decay = 1e-2
+optimizer = optim.AdamW(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001, weight_decay=weight_decay)
 #optimizer = optim.SGD(list(inflow_model.parameters())+list(outflow_model.parameters()), lr=.001, weight_decay=1e-6, momentum=.9, nesterov=True)
 
 # Create the scheduler
@@ -204,7 +206,7 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_schedule)
 
 # Training loop
 best_val_loss = float("inf")
-num_epochs = 5000
+num_epochs = 2000
 for epoch in range(num_epochs):
     train_dataset.reset_split()
     val_dataset.reset_split()
@@ -273,5 +275,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live.pth')
+        }, f'models/best_model_live_detorrent_stride.pth')
 

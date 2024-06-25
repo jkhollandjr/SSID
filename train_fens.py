@@ -22,9 +22,9 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='capture/')
-    parser.add_argument('--test', required=False, default='capture/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="capture_sept_")
+    parser.add_argument('--input', required=False, default='inflow/')
+    parser.add_argument('--test', required=False, default='inflow/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="inflow_")
     parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard (1) All traces (2) Online semi-hard')
     parser.add_argument('--load_model1', required=False, default = 'models/replicate_capture_model1_0.004692753776907921.h5')
     parser.add_argument('--load_model2', required=False, default='models/replicate_capture_model2_0.004692753776907921.h5')
@@ -318,6 +318,7 @@ if __name__ == '__main__':
     shared_model1 = create_model(input_shape=input_shape1, emb_size=64, model_name='tor')  ##
     shared_model2 = create_model(input_shape=input_shape2, emb_size=64, model_name='exit')  ##
 
+    '''
     if(args.load_model1 != ''):
         print("LOADING MODEL 1")
         shared_model1 = tf.keras.models.load_model(args.load_model1)
@@ -327,6 +328,7 @@ if __name__ == '__main__':
         print("LOADING MODEL 2")
         shared_model2 = tf.keras.models.load_model(args.load_model2)
         shared_model2.compile()
+    '''
  
 
     anchor = Input(input_shape1, name='anchor')

@@ -3,7 +3,7 @@ import numpy as np
 import multiprocessing as mp
 from sklearn.model_selection import train_test_split
 
-WINDOW_SIZE = 1000
+WINDOW_SIZE = 2000
 
 def resize_array(arr, target_size):
     # Calculate how many zeros to pad
@@ -34,7 +34,7 @@ def calculate_cumulative_traffic(packet_sizes, packet_times):
     cumulative_traffic = np.cumsum(cumulative_traffic)
 
     # Pad the array to a length of 1000 with zeros
-    padded_cumulative_traffic = np.pad(cumulative_traffic, (0, 1000 - len(cumulative_traffic)), 'constant')
+    padded_cumulative_traffic = np.pad(cumulative_traffic, (0, WINDOW_SIZE - len(cumulative_traffic)), 'constant')
 
     return padded_cumulative_traffic
 
@@ -94,8 +94,10 @@ def process_directory(directory):
     return np.stack(arrays)
 
 # Process directories
-inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_nov30/"
-outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_nov30/"
+inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow/"
+outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow/"
+inflow_directory = "/home/james/Desktop/research/outside_repos/DCF/CrawlE_Proc_DETORRENT/inflow/"
+outflow_directory = "/home/james/Desktop/research/outside_repos/DCF/CrawlE_Proc_DETORRENT/outflow/"
 
 inflow_data = process_directory(inflow_directory)
 outflow_data = process_directory(outflow_directory)
@@ -112,8 +114,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('data/train_inflows_cumul.npy', train_inflows)
-np.save('data/val_inflows_cumul.npy', val_inflows)
-np.save('data/train_outflows_cumul.npy', train_outflows)
-np.save('data/val_outflows_cumul.npy', val_outflows)
+np.save('data/train_inflows_detorrent.npy', train_inflows)
+np.save('data/val_inflows_detorrent.npy', val_inflows)
+np.save('data/train_outflows_detorrent.npy', train_outflows)
+np.save('data/val_outflows_detorrent.npy', val_outflows)
 

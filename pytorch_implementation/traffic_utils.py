@@ -9,7 +9,7 @@ def insert_dummy_packets_torch(sizes, times, directions, num_dummy_packets=0):
     if num_dummy_packets == 0:
         return sizes, times, directions
     device = sizes.device
-    original_length = 1000  # Target length
+    original_length = 2000  # Target length
 
     num_dummy_packets = np.random.randint(0, 2*num_dummy_packets)
 
@@ -84,7 +84,7 @@ def calculate_times_with_directions(times, directions):
 def calculate_cumulative_traffic(sizes, times):
     # Assuming 'sizes' and 'times' are PyTorch tensors
     # This method might need adjustments based on the exact representation of 'times'
-    cumulative_traffic = torch.div(torch.cumsum(sizes, dim=1), 1000)
+    cumulative_traffic = torch.div(torch.cumsum(sizes, dim=1), 2000)
     return cumulative_traffic
 
 def delay_and_sort_traffic_packets(sizes, times, directions, max_delay=1.0, delay_probability=0.2):
@@ -115,7 +115,7 @@ def insert_dummy_packets_torch_exponential(sizes, times, directions, num_dummy_p
         return sizes, times, directions
     
     device = sizes.device
-    original_length = 1000  # Target length
+    original_length = 2000  # Target length
 
     num_dummy_packets = np.random.randint(0, 2 * num_dummy_packets + 1)
 
@@ -214,7 +214,7 @@ def calculate_cumulative_traffic_torch(packet_sizes, packet_times):
     cumulative_traffic = torch.cumsum(cumulative_traffic, dim=1)
 
     # Pad the tensor to a length of 1000 with zeros for each batch item
-    padded_cumulative_traffic = torch.nn.functional.pad(cumulative_traffic, (0, 1000 - 512), "constant", 0)
+    padded_cumulative_traffic = torch.nn.functional.pad(cumulative_traffic, (0, 2000 - 512), "constant", 0)
 
     return torch.log(padded_cumulative_traffic+1)
 

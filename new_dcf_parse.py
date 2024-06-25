@@ -16,8 +16,8 @@ def convert_to_bursts(sequence):
 
 def parse_csv(csv_path, interval, file_names):#option: 'sonly', 'tonly', 'both'
     '''Open csv and read/store trace'''
-    here_path = csv_path+'inflow'
-    there_path = csv_path+'outflow'
+    here_path = csv_path + "inflow_nov30/"
+    there_path = csv_path + "outflow_nov30/"
     print(here_path, there_path, interval)
     #here
     here = []
@@ -131,9 +131,9 @@ def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interva
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Decaf_Filtered/')
-    parser.add_argument('--file_list_path', required=False, default='decaf_filtered.txt')
-    parser.add_argument('--prefix_pickle_output', required=False, default='decaf_filtered/')
+    parser.add_argument('--data_path', required=False, default='SSID_Capture/')
+    parser.add_argument('--file_list_path', required=False, default='inflow.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='inflow/')
 
     args = parser.parse_args()
 

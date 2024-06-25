@@ -9,8 +9,8 @@ def find_key(input_dict, value):
 def parse_csv(csv_path, interval, final_names, threshold): #option: 'sonly', 'tonly', 'both'
     '''For each file in directory, get packets in time interval and record if enough packets sent'''
 
-    here_path = csv_path+'inflow'
-    there_path = csv_path+'outflow'
+    here_path = csv_path + 'inflow_nov30/'
+    there_path = csv_path + 'outflow_nov30/'
     print(here_path, there_path, interval)
 
     file_names = []
@@ -60,8 +60,8 @@ def create_overlap_window_csv(csv_path, out_path, threshold, interval, num_windo
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Altered/')
-    parser.add_argument('--output_path', required=False, default='original_altered.txt')
+    parser.add_argument('--data_path', required=False, default='SSID_Capture/')
+    parser.add_argument('--output_path', required=False, default='inflow.txt')
     parser.add_argument('--threshold', type=int, required=False, default=1)
 
     args = parser.parse_args()

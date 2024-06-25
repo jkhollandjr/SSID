@@ -3,7 +3,7 @@ import glob
 import numpy as np
 import scipy.stats as stats
 
-directory = 'inflow_cdf/'
+directory = 'inflow_may17/'
 
 def compute_ecdf(data):
     sorted_data = np.sort(data)

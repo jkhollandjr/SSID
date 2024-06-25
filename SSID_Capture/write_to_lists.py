@@ -3,7 +3,13 @@ import random
 from load_data import load_data
 
 data = load_data()
-
+def add_tuples(inner_list):
+    for i in range(10):
+        first_float = 2.5 * (i + 1)
+        second_float = -142
+        inner_list.append((first_float, second_float))
+    inner_list.sort(key=lambda x: x[0])
+    return inner_list
 #list structure example
 list_of_lists = [
     [
@@ -36,6 +42,7 @@ for idx, outer_list in enumerate(data):
     selected_traces = [outer_list[0], outer_list[-1]]
 
     for j, inner_list in enumerate(selected_traces):
+        inner_list = add_tuples(inner_list)
         # Write to the first directory
         if j == 0:
             with open(os.path.join(dir1, file_name), 'w') as f:
