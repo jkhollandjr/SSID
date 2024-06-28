@@ -63,7 +63,7 @@ def convert_file_to_numpy(filename):
             times = np.array(times)
             sizes = np.array(sizes)
             directions = np.sign(sizes)
-            cumul = np.cumsum(sizes) / 1000
+            cumul = np.cumsum(np.abs(sizes)) / 10000
             cumul = resize_array(cumul, WINDOW_SIZE)
 
             window = np.stack([np.abs(sizes), times, directions, cumul])
@@ -94,8 +94,8 @@ def process_directory(directory):
     return np.stack(arrays)
 
 # Process directories
-inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_nov30_host/"
-outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_nov30_host/"
+inflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/inflow_may17/"
+outflow_directory = "/home/james/Desktop/research/SSID/SSID_Capture/outflow_may17/"
 
 inflow_data = process_directory(inflow_directory)
 outflow_data = process_directory(outflow_directory)
@@ -112,8 +112,8 @@ train_outflows = outflow_data[train_indices]
 val_outflows = outflow_data[val_indices]
 
 # Save the numpy arrays for later use
-np.save('data/train_inflows_host.npy', train_inflows)
-np.save('data/val_inflows_host.npy', val_inflows)
-np.save('data/train_outflows_host.npy', train_outflows)
-np.save('data/val_outflows_host.npy', val_outflows)
+np.save('data/train_inflows_may17.npy', train_inflows)
+np.save('data/val_inflows_may17.npy', val_inflows)
+np.save('data/train_outflows_may17.npy', train_outflows)
+np.save('data/val_outflows_may17.npy', val_outflows)
 

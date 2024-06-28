@@ -15,6 +15,7 @@ val_data = np.load('data/dcf_val_distances_espresso_live.npy')
 test_data = np.load('data/dcf_test_distances_espresso_live.npy')
 
 cutoff = 92
+cutoff = 28
 # Split the data into inputs and targets
 val_inputs = val_data[:, :cutoff]
 val_targets = val_data[:, -1]

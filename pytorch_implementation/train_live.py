@@ -160,11 +160,11 @@ def custom_collate_fn(batch):
 
 
 # Load the numpy arrays
-train_inflows = np.load('data/train_inflows_cumul.npy')
-val_inflows = np.load('data/val_inflows_cumul.npy')
+train_inflows = np.load('data/train_inflows_may17.npy')
+val_inflows = np.load('data/val_inflows_may17.npy')
 
-train_outflows = np.load('data/train_outflows_cumul.npy')
-val_outflows = np.load('data/val_outflows_cumul.npy')
+train_outflows = np.load('data/train_outflows_may17.npy')
+val_outflows = np.load('data/val_outflows_may17.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -183,11 +183,9 @@ embedding_size = 64
 inflow_model = DFModel()
 outflow_model = DFModel()
 
-'''
 checkpoint = torch.load('models/best_model_live_undefended_lr.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
-'''
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -219,7 +217,7 @@ for epoch in range(num_epochs):
         positive = positive.float().to(device)
         negative = negative.float().to(device)
 
-        anchor_embeddings = inflow_model(anchor)
+        anchor_embeddings = outflow_model(anchor)
         positive_embeddings = outflow_model(positive)
         negative_embeddings = outflow_model(negative)
 
@@ -273,5 +271,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live.pth')
+        }, f'models/best_model_live_may17_single.pth')
 

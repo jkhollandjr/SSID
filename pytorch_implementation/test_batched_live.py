@@ -44,7 +44,7 @@ outflow_model = DFModel()
 
 # Load the best models
 #checkpoint = torch.load('models/best_model_dcf_defened_0.00806727527074893.pth')
-checkpoint = torch.load('models/best_model_live.pth')
+checkpoint = torch.load('models/best_model_live_may17.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -58,8 +58,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load('data/val_inflows_cumul.npy')[:1000]
-val_outflows = np.load('data/val_outflows_cumul.npy')[:1000]
+val_inflows = np.load('data/val_inflows_may17.npy')[:1000]
+val_outflows = np.load('data/val_outflows_may17.npy')[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
