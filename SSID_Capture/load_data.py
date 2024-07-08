@@ -27,13 +27,19 @@ def boxcox_transform(value, lambda_value):
     else:
         raise ValueError("Value must be positive for Box-Cox transformation")
 
-def process(x, use_cdf=False):
+def process(x, use_cdf=True):
     """
     Simple example function to use when processing 
     """
     timestamps   = x[0]
     packet_sizes = x[1]
     directions   = x[2]
+
+    sorted_indices = np.argsort(timestamps)
+
+    timestamps = timestamps[sorted_indices]
+    packet_sizes =  packet_sizes[sorted_indices]
+    directions = directions[sorted_indices]
 
     iats = np.diff(timestamps)
     iats = np.concatenate(([0], iats))
@@ -44,10 +50,12 @@ def process(x, use_cdf=False):
     else:
         output = [(2.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
 
+    output = sorted(output, key=lambda x: x[0])
+
     return output
 
 
-def load_data(fp = './processed_nov30.pkl'):
+def load_data(fp = './processed_may17.pkl'):
     """
     Load the metadata for all samples collected in our SSID data, and process them using the process() function.
 
@@ -56,7 +64,7 @@ def load_data(fp = './processed_nov30.pkl'):
         (with all instances within the list being streams produced by hosts within the same multi-hop tunnel)
     """
 
-    with open("./processed_nov30.pkl", "rb") as fi:
+    with open("./processed_may17.pkl", "rb") as fi:
         all_data = pickle.load(fi)
     
     
@@ -73,7 +81,10 @@ def load_data(fp = './processed_nov30.pkl'):
     all_streams = []
     
     # each 'sample' contains a variable number of hosts (between 3 and 6 I believe)
+    counter = 0
     for s_idx in sample_IDs:
+        counter += 1
+        print(counter)
         sample = data[s_idx]
         host_IDs = list(sample.keys())
 
