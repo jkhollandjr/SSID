@@ -27,7 +27,7 @@ def boxcox_transform(value, lambda_value):
     else:
         raise ValueError("Value must be positive for Box-Cox transformation")
 
-def process(x, use_cdf=True):
+def process(x, use_cdf=False):
     """
     Simple example function to use when processing 
     """
@@ -48,7 +48,7 @@ def process(x, use_cdf=True):
         ecdf_function = load_ecdf_function("ecdf_function.npy")
         output = [(transform_new_data(t, ecdf_function)*25, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
     else:
-        output = [(2.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
+        output = [(.5*t, d*s) for t,d,s in zip(timestamps, directions, packet_sizes)]
 
     output = sorted(output, key=lambda x: x[0])
 

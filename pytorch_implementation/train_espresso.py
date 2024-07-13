@@ -150,9 +150,9 @@ class TripletDataset(Dataset):
             idx = random.choice(self.partition_2)
             negative_idx = random.choice([j for j in self.partition_1 if j != idx])
 
-        anchor = self.inflow_data[idx, window_idx]
-        positive = self.outflow_data[idx, window_idx]
-        negative = self.outflow_data[negative_idx, window_idx]
+        anchor = self.inflow_data[idx]
+        positive = self.outflow_data[idx]
+        negative = self.outflow_data[negative_idx]
 
         return anchor, positive, negative
 
@@ -217,142 +217,14 @@ def custom_collate_fn(batch):
     positives = torch.stack(positives)
     negatives = torch.stack(negatives)
 
-    # Function to apply transformations and dummy packet insertion
-    def transform_and_defend_features(features):
-        # Initialize lists to store transformed and defended tensors
-        interval_dirs_up_list = []
-        interval_dirs_down_list = []
-        interval_dirs_sum_list = []
-        interval_dirs_sub_list = []
-        interval_iats_list = []
-        interval_inv_iat_logs_list = []
-        interval_cumul_norm_list = []
-        interval_times_norm_list = []
-
-        # Loop through each sample in the features tensor
-        for i in range(features.size(0)):
-            sizes, times, directions = features[i, 0, :], features[i, 1, :], features[i, 2, :]
-
-            sizes = remove_right_padded_zeros(sizes)
-            times = remove_right_padded_zeros(times)
-            directions = remove_right_padded_zeros(directions)
-            zero_tensor = torch.tensor([0])
-            upload = directions > 0
-            download = ~upload
-            iats = torch.diff(times, prepend=zero_tensor)
-
-            interval_size = .03
-            num_intervals = int(torch.ceil(torch.max(times) / interval_size).item())
-
-            split_points = torch.arange(0, num_intervals) * interval_size
-            split_points = torch.searchsorted(times, split_points)
-
-            dirs_subs = torch.tensor_split(directions, split_points)
-            interval_dirs_up = torch.zeros(num_intervals+1)
-            interval_dirs_down = torch.zeros(num_intervals+1)
-            for i, tensor in enumerate(dirs_subs):
-                size = tensor.numel()
-                if size > 0:
-                    up = (tensor >= 0).sum()
-                    interval_dirs_up[i] = up
-                    interval_dirs_down[i] = size - up
-
-            times_subs = torch.tensor_split(times, split_points)
-            interval_times = torch.zeros(num_intervals+1)
-            for i,tensor in enumerate(times_subs):
-                if tensor.numel() > 0:
-                    interval_times[i] = tensor.mean()
-                elif i > 0:
-                    interval_times[i] = interval_times[i-1]
-
-            interval_times_norm = interval_times.clone()
-            interval_times_norm -= torch.mean(interval_times_norm)
-            interval_times_norm /= torch.amax(torch.abs(interval_times_norm))
-
-            '''
-            iats_subs = torch.tensor_split(iats, split_points)
-            interval_iats = torch.zeros(num_intervals+1)
-            for i,tensor in enumerate(iats_subs):
-                if tensor.numel() > 0:
-                    interval_iats[i] = tensor.mean()
-                elif i > 0:
-                    interval_iats[i] = interval_iats[i-1] + interval_size
-
-            download_iats = torch.diff(times[download], prepend=torch.tensor([0]))
-            upload_iats = torch.diff(times[upload], prepend=torch.tensor([0]))
-            flow_iats = torch.zeros_like(times)
-            flow_iats[upload] = upload_iats
-            flow_iats[download] = download_iats
-            inv_iat_logs = torch.log(torch.nan_to_num((1 / flow_iats)+1, nan=1e4, posinf=1e4))
-            inv_iat_logs_subs = torch.tensor_split(inv_iat_logs, split_points)
-            interval_inv_iat_logs = torch.zeros(num_intervals+1)
-            for i,tensor in enumerate(inv_iat_logs_subs):
-                if tensor.numel() > 0:
-                    interval_inv_iat_logs[i] = tensor.mean()
-            '''
-
-            size_dirs = sizes*directions
-            cumul = torch.cumsum(size_dirs, dim=0)   # raw accumulation
-            cumul_subs = torch.tensor_split(cumul, split_points)
-            interval_cumul = torch.zeros(num_intervals+1)
-            for i,tensor in enumerate(cumul_subs):
-                if tensor.numel() > 0:
-                    interval_cumul[i] = tensor.mean()
-                elif i > 0:
-                    interval_cumul[i] = interval_cumul[i-1]
-
-            interval_cumul_norm = interval_cumul.clone()
-            interval_cumul_norm -= torch.mean(interval_cumul_norm)
-            interval_cumul_norm /= torch.amax(torch.abs(interval_cumul_norm))
-
-            '''
-            running_rates = rate_estimator(iats, sizes)
-            rates_subs = torch.tensor_split(running_rates, split_points)
-            interval_rates = torch.zeros(num_intervals+1)
-            for i,tensor in enumerate(rates_subs):
-                if tensor.numel() > 0:
-                    interval_rates[i] = tensor.mean()
-
-            interval_dirs_sum = interval_dirs_up + interval_dirs_down
-            interval_dirs_sub = interval_dirs_up - interval_dirs_down
-            '''
-
-            interval_dirs_up_list.append(pad_or_truncate(interval_dirs_up).unsqueeze(0))
-            interval_dirs_down_list.append(pad_or_truncate(interval_dirs_down).unsqueeze(0))
-            #interval_dirs_sum_list.append(pad_or_truncate(interval_dirs_sum).unsqueeze(0))
-            #interval_dirs_sub_list.append(pad_or_truncate(interval_dirs_sub).unsqueeze(0))
-            #interval_iats_list.append(pad_or_truncate(interval_iats).unsqueeze(0))
-            #interval_inv_iat_logs_list.append(pad_or_truncate(interval_inv_iat_logs).unsqueeze(0))
-            interval_cumul_norm_list.append(pad_or_truncate(interval_cumul_norm).unsqueeze(0))
-            interval_times_norm_list.append(pad_or_truncate(interval_times_norm).unsqueeze(0))
-
-        interval_dirs_up_list = torch.cat(interval_dirs_up_list, dim=0)
-        interval_dirs_down_list = torch.cat(interval_dirs_down_list, dim=0)
-        #interval_dirs_sum_list = torch.cat(interval_dirs_sum_list, dim=0)
-        #interval_dirs_sub_list = torch.cat(interval_dirs_sub_list, dim=0)
-        #interval_iats_list = torch.cat(interval_iats_list, dim=0)
-        #interval_inv_iat_logs_list = torch.cat(interval_inv_iat_logs_list, dim=0)
-        interval_cumul_norm_list = torch.cat(interval_cumul_norm_list, dim=0)
-        interval_times_norm_list = torch.cat(interval_times_norm_list, dim=0)
-        # Consider splitting upload and download inter-packet times?
-
-        # Stack all features together
-        #transformed_features = torch.stack([interval_dirs_up_list, interval_dirs_down_list, interval_dirs_sum_list, interval_dirs_sub_list, interval_iats_list, interval_inv_iat_logs_list, interval_cumul_norm_list, interval_times_norm_list], dim=1)
-        transformed_features = torch.stack([interval_dirs_up_list, interval_dirs_down_list, interval_cumul_norm_list, interval_times_norm_list], dim=1)
-        return transformed_features
-
-    transformed_anchors = transform_and_defend_features(anchors)
-    transformed_positives = transform_and_defend_features(positives)
-    transformed_negatives = transform_and_defend_features(negatives)
-
-    return transformed_anchors, transformed_positives, transformed_negatives
+    return anchors, positives, negatives
 
 # Load the numpy arrays
-train_inflows = np.load('data/train_inflows_may17.npy')
-val_inflows = np.load('data/val_inflows_may17.npy')
+train_inflows = np.load('data/train_inflows_may17_transformer.npy')
+val_inflows = np.load('data/val_inflows_may17_transformer.npy')
 
-train_outflows = np.load('data/train_outflows_may17.npy')
-val_outflows = np.load('data/val_outflows_may17.npy')
+train_outflows = np.load('data/train_outflows_may17_transformer.npy')
+val_outflows = np.load('data/val_outflows_may17_transformer.npy')
 
 # Define the datasets
 train_dataset = TripletDataset(train_inflows, train_outflows)
@@ -368,14 +240,12 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler,
 
 # Instantiate the models
 embedding_size = 64
-inflow_model = EspressoNet(4, special_toks=1, **model_config)
-outflow_model = EspressoNet(4, special_toks=1, **model_config)
+inflow_model = EspressoNet(8, special_toks=1, **model_config)
+outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
-'''
-checkpoint = torch.load('models/best_model_live_espresso_may17.pth')
+checkpoint = torch.load('models/best_model_live_espresso_may17_precomputed.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
-'''
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -406,9 +276,9 @@ for epoch in range(num_epochs):
         negative = negative.float().to(device)
 
         #anchor_embeddings, anchor_chain = inflow_model(anchor)
-        anchor_embeddings, anchor_chain = outflow_model(anchor)
-        positive_embeddings, positive_chain = outflow_model(positive)
-        negative_embeddings, negative_chain = outflow_model(negative)
+        anchor_embeddings, anchor_chain = outflow_model(anchor[:,3:,:])
+        positive_embeddings, positive_chain = outflow_model(positive[:,3:,:])
+        negative_embeddings, negative_chain = outflow_model(negative[:,3:,:])
 
         # Compute the loss
         loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -438,9 +308,9 @@ for epoch in range(num_epochs):
 
             # Forward pass
             #anchor_embeddings, anchor_chain = inflow_model(anchor[:,:,:])
-            anchor_embeddings, anchor_chain = outflow_model(anchor)
-            positive_embeddings, positive_chain = outflow_model(positive[:,:,:])
-            negative_embeddings, negative_chain = outflow_model(negative[:,:,:])
+            anchor_embeddings, anchor_chain = outflow_model(anchor[:,3:,:])
+            positive_embeddings, positive_chain = outflow_model(positive[:,3:,:])
+            negative_embeddings, negative_chain = outflow_model(negative[:,3:,:])
 
             # Compute the loss
             loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
@@ -461,5 +331,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_espresso_may17_features_250.pth')
+        }, f'models/best_model_live_espresso_may17_fixed.pth')
 

@@ -18,8 +18,8 @@ list_of_lists = [
     ]
 ]
 
-dir1 = 'inflow_may17'
-dir2 = 'outflow_may17'
+dir1 = 'inflow_may17_fixed'
+dir2 = 'outflow_may17_fixed'
 
 # Ensure directories exist
 os.makedirs(dir1, exist_ok=True)
