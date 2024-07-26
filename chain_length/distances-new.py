@@ -115,7 +115,9 @@ if __name__ == "__main__":
         # multi-channel feature processor
         processor = DataProcessor(features)
 
-        pklpath = '../data/ssh/processed_nov17_fixtime.pkl'
+        pklpath = '../data/processed.pkl'
+        #pklpath = '../data/processed-icmp.pkl'
+        #pklpath = '../data/processed_nov30.pkl'
         #pklpath = '../data/ssh_socat/processed_nov30.pkl'
 
         # chain-based sample splitting
@@ -338,6 +340,7 @@ if __name__ == "__main__":
     # Compute the ROC curve
     fpr, tpr, thresholds = metrics.roc_curve(targets_list, outputs_list, 
                                              drop_intermediate=False)
+    np.savez('results.npz', {'fpr': fpr, 'tpr': tpr, 'thresholds': thresholds})
     roc_auc = metrics.auc(fpr, tpr)
     
     import matplotlib.pyplot as plt
@@ -345,7 +348,8 @@ if __name__ == "__main__":
     plt.plot(fpr, tpr, 'b', label = 'AUC = %0.6f' % roc_auc)
     plt.legend(loc = 'lower right')
     #plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([1e-6, .1])
+    #plt.xlim([1e-6, .1])
+    plt.xlim([1e-10, 1.])
     #plt.xlim([0, 1e-3])
     plt.ylim([0, 1])
     plt.ylabel('True Positive Rate')

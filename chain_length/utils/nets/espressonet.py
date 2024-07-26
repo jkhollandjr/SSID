@@ -75,7 +75,7 @@ class EspressoNet(nn.Module):
         block_func = partial(TransformerBlock, 
                                     dim = self.hidden_dim, 
                                     token_mixer = self.mixer,
-                                    skip_toks=self.special_toks,
+                                    skip_toks=self.special_toks+1,
                              )
         block_list += [block_func() for _ in range(self.depth)]
 
@@ -90,8 +90,11 @@ class EspressoNet(nn.Module):
                 nn.LayerNorm(self.hidden_dim * self.head_ratio),
                 nn.Linear(self.hidden_dim * self.head_ratio, self.feature_dim),
                 )
+        
+        self.embed = nn.Embedding(4, self.hidden_dim)
 
     def forward(self, x, 
+                x_proto = None,
             sample_sizes = None,
             return_toks = False,
             *args, **kwargs):
@@ -120,11 +123,15 @@ class EspressoNet(nn.Module):
 
         # apply conv. and transformer layers
         x = self.blocks[0](x)
+        
+        if x_proto is not None:
+            x_proto = self.embed(x_proto).unsqueeze(-1)
+            x = torch.cat((x_proto, x), dim=2)
 
         if self.special_toks > 0:
             special_toks_in = self.extra_tokens.unsqueeze(0).expand(x.shape[0],-1,-1)
             x = torch.cat((special_toks_in, x), dim=2)
-
+            
         for i,block in enumerate(self.blocks[1:]):
             x = block(x)
 
@@ -133,6 +140,8 @@ class EspressoNet(nn.Module):
             special_toks_out = self.special_fc(special_toks_out).permute(0,2,1)
 
             x = x[:,:,self.special_toks:]
+            if x_proto is not None:
+                x = x[:,:,1:]
 
         # apply windowing feature prediction
         x = self.windowing(x).permute(0,2,1)

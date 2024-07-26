@@ -77,6 +77,10 @@ class DataProcessor:
                 'interval_dirs_down': ['interval_dirs_sum', 'interval_dirs_sub'], 
                 'interval_dirs_sum': [], 
                 'interval_dirs_sub': [], 
+                'interval_size_up': ['interval_size_sum', 'interval_size_sub'], 
+                'interval_size_down': ['interval_size_sum', 'interval_size_sub'], 
+                'interval_size_sum': [], 
+                'interval_size_sub': [], 
                 'interval_times': ['interval_times_norm'], 
                 'interval_times_norm': [], 
                 'interval_iats': [], 
@@ -87,10 +91,11 @@ class DataProcessor:
              }
 
 
-    def __init__(self, process_options = ('dirs',)):
+    def __init__(self, process_options = ('dirs',), interval_size=0.03, **kwargs):
         self.process_options = process_options if process_options else {}
         self.input_channels = len(self.process_options)
         self.cache = dict()
+        self.interval_size = interval_size
 
         assert len(self.process_options) > 0
         assert all(opt in self.DEPENS.keys() for opt in self.process_options)
@@ -119,6 +124,9 @@ class DataProcessor:
     def process(self, x):
         """Map raw metadata to processed pkt representations
         """
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        x = x.to(device)
+        
         size = len(x)
 
         def fix_size(z, size=size):
@@ -159,7 +167,7 @@ class DataProcessor:
 
         if self._is_enabled("iats"):
             # 1st-order diff of timestamps shows inter-packet arrival times
-            iats = torch.diff(times, prepend=torch.tensor([0]))
+            iats = torch.diff(times, prepend=torch.tensor([0]).to(device))
             feature_dict['iats'] = iats
 
         if self._is_enabled("cumul"):
@@ -176,7 +184,7 @@ class DataProcessor:
 
         if self._is_enabled("burst_edges"):
             # 1st-order diff of directions detects burst boundaries (with value +/-2)
-            burst_edges = torch.diff(dirs, prepend=torch.tensor([0]))
+            burst_edges = torch.diff(dirs, prepend=torch.tensor([0]).to(device))
             feature_dict['burst_edges'] = burst_edges
 
         if self._is_enabled("iat_dirs"):
@@ -189,19 +197,19 @@ class DataProcessor:
             feature_dict['running_rates'] = running_rates
 
         if self._is_enabled('running_rates_diff'):
-            running_rate_diff = torch.diff(running_rates, prepend = torch.tensor([0]))
+            running_rate_diff = torch.diff(running_rates, prepend = torch.tensor([0]).to(device))
             feature_dict['running_rates_diff'] = running_rate_diff
 
         if self._is_enabled('running_rates_decayed'):
-            running_rates_decay = weighted_rate_estimator(iats)
+            running_rates_decay = weighted_rate_estimator(iats).to(device)
             feature_dict['running_rates_decayed'] = running_rates_decay
 
         if self._is_enabled('up_iats'):
-            upload_iats = torch.diff(times[upload], prepend=torch.tensor([0]))
+            upload_iats = torch.diff(times[upload], prepend=torch.tensor([0]).to(device))
             feature_dict['up_iats'] = upload_iats
 
         if self._is_enabled('down_iats'):
-            download_iats = torch.diff(times[download], prepend=torch.tensor([0]))
+            download_iats = torch.diff(times[download], prepend=torch.tensor([0]).to(device))
             feature_dict['down_iats'] = download_iats
 
         if self._is_enabled('up_rates'):
@@ -256,20 +264,24 @@ class DataProcessor:
             feature_dict['inv_iat_log_dirs'] = inv_iat_logs * dirs
 
         if self._is_enabled('interval_dirs_up', 'interval_dirs_down', 
+                            'interval_size_up', 'interval_size_down',
                             'interval_times', 'interval_iats', 'interval_inv_iat_logs',
                             'interval_cumul', 'interval_rates'):
-            interval_size = 0.03  # 30ms intervals
 
-            num_intervals = int(torch.ceil(torch.max(times) / interval_size).item())
+            num_intervals = int(torch.ceil(torch.max(times) / self.interval_size).item())
 
-            split_points = torch.arange(0, num_intervals) * interval_size
-            split_points = torch.searchsorted(times, split_points)
+            split_points = (torch.arange(0, num_intervals) * self.interval_size).to(device)
+            split_points = torch.searchsorted(times.contiguous(), split_points.contiguous()).cpu()
 
-            if self._is_enabled('interval_dirs_up','interval_dirs_down'):
+            if self._is_enabled('interval_dirs_up','interval_dirs_down', 
+                                'interval_size_up', 'interval_size_down'):
                 dirs_subs = torch.tensor_split(dirs, split_points)
+                size_subs = torch.tensor_split(sizes, split_points)
 
                 interval_dirs_up = torch.zeros(num_intervals+1)
                 interval_dirs_down = torch.zeros(num_intervals+1)
+                interval_size_up = torch.zeros(num_intervals+1)
+                interval_size_down = torch.zeros(num_intervals+1)
                 for i,tensor in enumerate(dirs_subs):
                     size = tensor.numel()
                     if size > 0:
@@ -288,6 +300,31 @@ class DataProcessor:
 
             if self._is_enabled('interval_dirs_sub'):
                 feature_dict['interval_dirs_sub'] = interval_dirs_up - interval_dirs_down
+                
+            if self._is_enabled('interval_size_up', 'interval_size_down'):
+                size_subs = torch.tensor_split(sizes*dirs, split_points)
+
+                interval_size_up = torch.zeros(num_intervals+1)
+                interval_size_down = torch.zeros(num_intervals+1)
+                for i,tensor in enumerate(size_subs):
+                    size = tensor.numel()
+                    if size > 0:
+                        up = (tensor >= 0).sum()
+                        interval_size_up[i] = up
+                        down = (tensor <= 0).sum()
+                        interval_size_down[i] = down
+                        
+            if self._is_enabled('interval_size_up'):
+                feature_dict['interval_size_up'] = interval_size_up
+
+            if self._is_enabled('interval_size_down'):
+                feature_dict['interval_size_down'] = interval_size_down
+
+            if self._is_enabled('interval_size_sum'):
+                feature_dict['interval_size_sum'] = interval_size_up + interval_size_down
+
+            if self._is_enabled('interval_size_sub'):
+                feature_dict['interval_size_sub'] = interval_size_up - interval_size_down
 
             if self._is_enabled('interval_times'):
                 times_subs = torch.tensor_split(times, split_points)
@@ -312,7 +349,7 @@ class DataProcessor:
                     if tensor.numel() > 0:
                         interval_iats[i] = tensor.mean()
                     elif i > 0:
-                        interval_iats[i] = interval_iats[i-1] + interval_size
+                        interval_iats[i] = interval_iats[i-1] + self.interval_size
                 feature_dict['interval_iats'] = interval_iats
 
             if self._is_enabled('interval_inv_iat_logs'):
@@ -355,7 +392,7 @@ class DataProcessor:
         #assert not torch.any(features.isnan())
         #assert not torch.any(features.isinf())
 
-        return features
+        return features.cpu()
 
     def __call__(self, x):
         return self.process(x)

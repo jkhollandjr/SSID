@@ -144,16 +144,17 @@ if __name__ == "__main__":
                 'input_size': 1200,
                 'feature_dim': 64,
                 'hidden_dim': 128,
+                #'hidden_dim': 192,
                 'depth': 12,
                 'input_conv_kwargs': {
-                    'kernel_size': 3,
+                    'kernel_size': 5,
                     'stride': 3,
                     'padding': 0,
                     },
                 'output_conv_kwargs': {
-                    'kernel_size': 60,
+                    'kernel_size': 40,
                     #'stride': 40,
-                    'stride': 3,
+                    'stride': 5,
                     'padding': 0,
                     },
                 "mhsa_kwargs": {
@@ -165,14 +166,21 @@ if __name__ == "__main__":
                     "feedforward_ratio": 12,
                     "feedforward_drop": 0.0
                 },
+                "head_ratio": 12,
+                "interval_size": 0.03,
                 "features": [
                     "interval_dirs_up", 
                     "interval_dirs_down", 
                     "interval_dirs_sum",
                     "interval_dirs_sub",
-                    "interval_iats",
-                    "interval_inv_iat_logs",
+                    "interval_size_up", 
+                    "interval_size_down", 
+                    "interval_size_sum",
+                    "interval_size_sub",
+                    #"interval_iats",
+                    #"interval_inv_iat_logs",
                     "interval_cumul_norm",
+                    #"interval_rates",
                     "interval_times_norm",
                     ],
                 "window_kwargs": {
@@ -225,15 +233,19 @@ if __name__ == "__main__":
     # create data loaders
     # # # # # #
     # multi-channel feature processor
-    processor = DataProcessor(features)
+    processor = DataProcessor(features, **model_config)
 
-    pklpath = '../data/ssh/processed_nov17_fixtime.pkl'
+    #pklpath = '../data/ssh/processed_nov17_fixtime.pkl'
+    #pklpath = '../data/processed-icmp.pkl'
     #pklpath = '../data/ssh_socat/processed_nov30.pkl'
+    pklpath = '../data/processed.pkl'
 
     # chain-based sample splitting
     te_idx = np.arange(0,1000)
     va_idx = np.arange(1000,2000)
     tr_idx = np.arange(2000,10000)
+    #te_idx = np.arange(0,100)
+    #va_idx = np.arange(100,200)
     #tr_idx = np.arange(200,400)
 
     # stream window definitions
@@ -348,12 +360,15 @@ if __name__ == "__main__":
 
                 # online loss variant
                 if args.online:
-                    inputs, labels, targets = data
+                    inputs, labels, targets, protocols = data
                     inputs = inputs.to(device)
                     labels = labels.to(device)
                     targets = targets.to(device)
+                    protocols = protocols.to(device)
 
-                    embed, chain = fen(inputs, return_toks=multitask)
+                    embed, chain = fen(inputs, 
+                                        x_proto=protocols, 
+                                        return_toks=multitask)
 
                     triplet_loss = triplet_criterion(embed, labels)
                     trip_loss += triplet_loss.item()

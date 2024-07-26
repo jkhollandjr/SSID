@@ -1,0 +1,41 @@
+{
+    "input_size": 1000,
+    "feature_dim": 128,
+    "filter_grow_factor": 1.5,
+    "channel_up_factor": 22,
+    "conv_expand_factor": 2,
+    "conv_dropout_p": 0.1,
+    "conv_skip": true,
+    "depth_wise": true,
+    "use_gelu": true,
+    "stem_downproj": 0.5,
+    "stage_count": 3,
+    "kernel_size": 7,
+    "pool_stride_size": 3,
+    "pool_size": 7,
+    "block_dropout_p": 0.1,
+    "flatten_feats": false,
+    "trans_depths": 3,
+    "mhsa_kwargs": {
+        "head_dim": 10,
+        "use_conv_proj": true,
+        "kernel_size": 7,
+        "stride": 3,
+        "feedforward_style": "mlp",
+        "feedforward_ratio": 2,
+        "feedforward_drop": 0.0
+    },
+    "features": [
+	    "inv_iat_logs", 
+	    "iats", 
+	    "times", 
+	    "sizes", 
+	    "running_rates", 
+	    "burst_edges"
+    ],
+    "window_kwargs": {
+	    "window_count": 11, 
+            "window_width": 3, 
+            "window_overlap": 1
+    }
+}

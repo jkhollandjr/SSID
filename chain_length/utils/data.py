@@ -8,6 +8,9 @@ import itertools
 from numpy import random
 
 
+PROTO_MAP = {'ssh': 0, 'socat': 1, 'icmp': 2, 'dns': 3}
+
+
 def check_filter(idx, idx_rev, upper, lower, ends_only):
     # filter out streams that does not match range criteria
     if ends_only:
@@ -84,6 +87,8 @@ class BaseDataset(data.Dataset):
         self.data_windows = dict()
         self.data_chainlengths = dict()
         self.data_chain_IDs = dict()
+        self.data_protocols = dict()
+        self.ends_only = ends_only
 
         times_processor = DataProcessor(('times',))
 
@@ -92,7 +97,7 @@ class BaseDataset(data.Dataset):
         self.host_only = host_only
 
         # load and enumeratechains in the dataset
-        chains = load_dataset(filepath, sample_idx)
+        chains, protocols = load_dataset(filepath, sample_idx)
         for chain_ID, chain in tqdm(enumerate(chains)):
 
             # total hops in chain
@@ -143,10 +148,11 @@ class BaseDataset(data.Dataset):
                 downstream_hops = (stream_ID+1) // 2
                 upstream_hops = hops - downstream_hops - 1
                 self.data_chainlengths[sample_ID] = (downstream_hops, upstream_hops)
+                self.data_protocols[sample_ID] = protocols[chain_ID][stream_ID]
 
             if len(stream_ID_list) > 1:
                 self.data_chain_IDs[chain_ID] = stream_ID_list
-
+                
     def __len__(self):
         """
         Count of all streams within the dataset.
@@ -211,6 +217,7 @@ class PairwiseDataset(BaseDataset):
             else:
                 correlated = False
 
+            # for positives, consider only samples on the same host
             if self.host_only and correlated:
                 # consider only host-wise pairs if host_only is enabled
                 stream_IDs = self.data_chain_IDs[chain1_ID]
@@ -218,6 +225,19 @@ class PairwiseDataset(BaseDataset):
                     hostwise_pair = ((chain1_ID, stream_IDs[i]), (chain1_ID, stream_IDs[i+1]), correlated)
                     self.correlated_pairs.append(hostwise_pair)
 
+            # consider only first and last sample pairs
+            elif self.ends_only:
+                a = (chain1_ID, self.data_chain_IDs[chain1_ID][0])
+                b = (chain1_ID, self.data_chain_IDs[chain1_ID][-1])
+                c = (chain2_ID, self.data_chain_IDs[chain2_ID][0])
+                d = (chain2_ID, self.data_chain_IDs[chain2_ID][-1])
+                if correlated:
+                    self.correlated_pairs.append((a, d, correlated))
+                else:
+                    self.uncorrelated_pairs.append((a, d, correlated))
+                    self.uncorrelated_pairs.append((b, c, correlated))
+
+            # all possible stream combinations between chains (with sole exception to same streams)
             else:
                 chain1_ID_tuples = [(chain1_ID, stream_ID) for stream_ID in self.data_chain_IDs[chain1_ID]]
                 chain2_ID_tuples = [(chain2_ID, stream_ID) for stream_ID in self.data_chain_IDs[chain2_ID]]
@@ -234,11 +254,13 @@ class PairwiseDataset(BaseDataset):
 
         if sample_ratio is not None:
             random.seed(sample_seed)
+
             if sample_mode == 'oversample':
                 k = int(len(self.uncorrelated_pairs) * sample_ratio)
                 idx = random.choice(np.arange(len(self.correlated_pairs)), size=k, replace=False)
                 self.correlated_pairs = np.array(self.correlated_pairs, dtype=object)[idx]
                 self.uncorrelated_pairs = np.array(self.uncorrelated_pairs, dtype=object)
+
             elif sample_mode == 'undersample':
                 k = int(len(self.correlated_pairs) * sample_ratio)
                 idx = random.choice(np.arange(len(self.uncorrelated_pairs)), size=k, replace=False)
@@ -473,13 +495,15 @@ class OnlineDataset(BaseDataset):
 
         samples = []
         chain_lengths = []
+        protocols = []
         for stream_ID in stream_IDs:
             ID = (chain_ID, stream_ID)
             sample = self.data_windows[ID]
             samples.append(sample)
             chain_lengths.append(self.data_chainlengths[ID])
+            protocols.append(self.data_protocols[ID])
 
-        return samples, chain_lengths
+        return samples, chain_lengths, protocols
 
     @staticmethod
     def batchify(batch):
@@ -489,6 +513,7 @@ class OnlineDataset(BaseDataset):
         batch_x = []
         batch_y = []
         chain_lengths = []
+        chain_protocols = []
         cur_label = 0
         for i in range(len(batch)):
             # add correlated samples to batch
@@ -496,6 +521,7 @@ class OnlineDataset(BaseDataset):
             # add label information for correlated samples
             batch_y.extend([cur_label] * len(batch[i][0]))
             chain_lengths.extend(batch[i][1])
+            chain_protocols.extend(batch[i][2])
             cur_label += 1
 
         # pick a random window to return
@@ -511,8 +537,9 @@ class OnlineDataset(BaseDataset):
         batch_x_tensor = batch_x_tensor.float()
         batch_y_tensor = torch.tensor(batch_y)
         chain_lengths = torch.tensor(chain_lengths)
+        chain_protocols = torch.tensor(chain_protocols)
     
-        return batch_x_tensor, batch_y_tensor, chain_lengths
+        return batch_x_tensor, batch_y_tensor, chain_lengths, chain_protocols
 
 
 def create_windows(times, features,
@@ -587,21 +614,22 @@ def load_dataset(filepath, idx_selector=None):
 
     IP_info = all_data['IPs']   # extra src. & dst. IP info available for each stream
     data = all_data['data']     # stream metadata organized by sample and hosts (per sample)
-
+    data_protocols = all_data['proto']
 
     # list of all sample idx
     sample_IDs = sorted(list(data.keys()))   # sorted so that it is reliably ordered
     if idx_selector is not None:
         sample_IDs = np.array(sample_IDs, dtype=object)[idx_selector].tolist()  # slice out requested idx
 
-
     # fill with lists of correlated samples
     all_streams = []
+    all_protocols = []
 
     # each 'sample' contains a variable number of hosts (between 3 and 6 I believe)
     for s_idx in sample_IDs:
         sample = data[s_idx]
         host_IDs = list(sample.keys())
+        protocols = data_protocols[s_idx]
 
         # first and last hosts represent the attacker's machine and target endpoint of the chain respectively
         # these hosts should contain only one SSH stream in their sample
@@ -614,13 +642,16 @@ def load_dataset(filepath, idx_selector=None):
 
         # loop through each host, process stream metadata into vectors, and add to list
         correlated_streams = []
+        stream_protocols = []
         for h_idx in host_IDs:
             correlated_streams.extend([torch.tensor(x).T for x in sample[h_idx]])
+            stream_protocols.extend([PROTO_MAP[proto] for proto in protocols[h_idx]])
 
         # add group of correlated streams for the sample into the data list
         all_streams.append(correlated_streams)
+        all_protocols.append(stream_protocols)
 
-    return all_streams
+    return all_streams, all_protocols
 
 
 if __name__ == "__main__":

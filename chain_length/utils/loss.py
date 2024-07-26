@@ -65,7 +65,8 @@ class OnlineCosineTripletLoss(nn.Module):
 
         return mask
 
-    def forward(self, embeddings, labels):
+    def forward(self, embeddings, labels,
+                use_iq_mean = False):
         # Normalize each vector (element) to have unit norm
         norms = torch.norm(embeddings, p=2, dim=1, keepdim=True)  # Compute L2 norms
         embeddings = embeddings / norms  # Divide by norms to normalize
@@ -75,6 +76,17 @@ class OnlineCosineTripletLoss(nn.Module):
             all_sim = torch.mm(embeddings, embeddings.t())
         elif embeddings.dim() == 3:
             all_sim = torch.matmul(embeddings.permute(1,0,2), embeddings.permute(1,2,0))
+
+            if use_iq_mean:
+                # interquartile mean
+                lower_quant = torch.quantile(all_sim, 0.25, dim=0, keepdim=True)
+                upper_quant = torch.quantile(all_sim, 0.75, dim=0, keepdim=True)
+                mask = (all_sim > lower_quant) & (all_sim < upper_quant)
+                all_sim = all_sim * mask
+                all_sim = torch.sum(all_sim, dim=0) / torch.sum(mask, dim=0)
+            else:
+                # standard mean
+                all_sim = all_sim.mean(0)
 
         # mask of valid triplets
         mask = self._get_triplet_mask(labels).float()
@@ -90,8 +102,8 @@ class OnlineCosineTripletLoss(nn.Module):
             loss = loss.sum() / (torch.gt(loss, 1e-16).float().sum() + 1e-16)
         else:
             loss = loss.sum() / mask.sum()
-            if embeddings.dim() == 3:  # scale loss to fix additional window dim
-                loss *= all_sim.size(0)
+            #if embeddings.dim() == 3:  # scale loss to fix additional window dim
+            #    loss *= all_sim.size(0)
 
         return loss
 
@@ -133,8 +145,16 @@ class OnlineHardCosineTripletLoss(nn.Module):
         """
         return labels.unsqueeze(0) != labels.unsqueeze(1)
 
-    def forward(self, embeddings, labels):
-        #all_sim = self.cosine_sim(embeddings.unsqueeze(-1), embeddings.unsqueeze(-1).T)
+    def forward(self, embeddings, labels, 
+            use_iq_mean = False,
+            use_hard_negative_loss = True):
+        """
+        Args:
+            embeddings: torch.Tensor -- batch of feature embeddings with shape [batch_size, features] or [batch_size, windows, features]
+            labels: torch.Tensor of dtype torch.int32 with shape [batch_size]
+            use_ciq_mean: bool -- use the mean of the interquartile range (e.g., exclude high and low quartiles from mean)
+            use_hard_negative_loss: bool -- when enabled, the positive loss component is ignored when the hardest pos is too easy (e.g. pos_sim < neg_sim)
+        """
         # Normalize each vector (element) to have unit norm
         norms = torch.norm(embeddings, p=2, dim=1, keepdim=True)  # Compute L2 norms
         embeddings = embeddings / norms  # Divide by norms to normalize
@@ -142,9 +162,20 @@ class OnlineHardCosineTripletLoss(nn.Module):
         # Compute pairwise cosine similarity
         if embeddings.dim() == 2:
             all_sim = torch.mm(embeddings, embeddings.t())
+
         elif embeddings.dim() == 3:
             all_sim = torch.matmul(embeddings.permute(1,0,2), embeddings.permute(1,2,0))
-            all_sim = all_sim.mean(0)
+
+            if use_iq_mean:
+                # interquartile mean
+                lower_quant = torch.quantile(all_sim, 0.25, dim=0, keepdim=True)
+                upper_quant = torch.quantile(all_sim, 0.75, dim=0, keepdim=True)
+                mask = (all_sim > lower_quant) & (all_sim < upper_quant)
+                all_sim = all_sim * mask
+                all_sim = torch.sum(all_sim, dim=0) / torch.sum(mask, dim=0)
+            else:
+                # standard mean
+                all_sim = all_sim.mean(0)
 
         # find hardest positive pairs (when positive has low sim)
         # mask of all valid positives
@@ -161,6 +192,11 @@ class OnlineHardCosineTripletLoss(nn.Module):
         anc_neg_sim = all_sim * mask_anc_neg
         # select maximum sim negatives
         hardest_neg_sim = anc_neg_sim.max(dim=1, keepdim=True)[0]
+
+        if use_hard_negative_loss:
+            # selective contrastive loss
+            selective_idx = hardest_neg_sim > hardest_pos_sim
+            hardest_pos_sim[selective_idx] = 0.
 
         loss = F.relu(hardest_neg_sim - hardest_pos_sim + self.margin)
 
