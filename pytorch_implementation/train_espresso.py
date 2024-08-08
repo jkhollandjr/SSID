@@ -12,6 +12,112 @@ from espresso import EspressoNet
 
 torch.set_printoptions(threshold=5000)
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class OnlineHardCosineTripletLoss(nn.Module):
+    def __init__(self, margin=0.1):
+        super(OnlineHardCosineTripletLoss, self).__init__()
+        self.margin = margin
+
+    def _get_anc_pos_triplet_mask(self, labels):
+        """Return a 2D mask where mask[a, p] is True iff a and p are distinct and have the same label.
+
+        Args:
+            labels: torch.Tensor of dtype torch.int32 with shape [batch_size]
+
+        Returns:
+            mask: torch.Tensor of dtype torch.bool with shape [batch_size, batch_size]
+        """
+        # Check that i and j are distinct
+        indices_equal = torch.eye(labels.size(0)).to(labels.device).bool()
+        indices_not_equal = ~indices_equal
+
+        # Check if labels[i] == labels[j]
+        labels_equal = labels.unsqueeze(0) == labels.unsqueeze(1)
+
+        # Combine the two masks
+        mask = indices_not_equal & labels_equal
+
+        return mask
+
+    def _get_anc_neg_triplet_mask(self, labels):
+        """Return a 2D mask where mask[a, n] is True iff a and n have distinct labels.
+
+        Args:
+            labels: torch.Tensor of dtype torch.int32 with shape [batch_size]
+
+        Returns:
+            mask: torch.Tensor of dtype torch.bool with shape [batch_size, batch_size]
+        """
+        return labels.unsqueeze(0) != labels.unsqueeze(1)
+
+    def forward(self, embeddings, labels, 
+            use_iq_mean = False,
+            use_hard_negative_loss = True):
+        """
+        Args:
+            embeddings: torch.Tensor -- batch of feature embeddings with shape [batch_size, features] or [batch_size, windows, features]
+            labels: torch.Tensor of dtype torch.int32 with shape [batch_size]
+            use_ciq_mean: bool -- use the mean of the interquartile range (e.g., exclude high and low quartiles from mean)
+            use_hard_negative_loss: bool -- when enabled, the positive loss component is ignored when the hardest pos is too easy (e.g. pos_sim < neg_sim)
+        """
+
+        batch_sizes = embeddings.shape[0]
+        embeddings = embeddings.reshape(-1, 92, 64)
+        labels = labels.reshape(batch_sizes).to(device)
+
+        # Normalize each vector (element) to have unit norm
+        norms = torch.norm(embeddings, p=2, dim=1, keepdim=True)  # Compute L2 norms
+        embeddings = embeddings / norms  # Divide by norms to normalize
+        
+        # Compute pairwise cosine similarity
+        if embeddings.dim() == 2:
+            all_sim = torch.mm(embeddings, embeddings.t())
+
+        elif embeddings.dim() == 3:
+            all_sim = torch.matmul(embeddings.permute(1,0,2), embeddings.permute(1,2,0))
+
+            if use_iq_mean:
+                # interquartile mean
+                lower_quant = torch.quantile(all_sim, 0.25, dim=0, keepdim=True)
+                upper_quant = torch.quantile(all_sim, 0.75, dim=0, keepdim=True)
+                mask = (all_sim > lower_quant) & (all_sim < upper_quant)
+                all_sim = all_sim * mask
+                all_sim = torch.sum(all_sim, dim=0) / torch.sum(mask, dim=0)
+            else:
+                # standard mean
+                all_sim = all_sim.mean(0)
+
+        # find hardest positive pairs (when positive has low sim)
+        # mask of all valid positives
+        mask_anc_pos = self._get_anc_pos_triplet_mask(labels)
+        # prevent invalid pos by increasing sim
+        anc_pos_sim = all_sim + (~mask_anc_pos * 999).float()
+        # select minimum sim positives
+        hardest_pos_sim = anc_pos_sim.min(dim=1, keepdim=True)[0]
+
+        # find hardest negative triplets (when negative has high sim)
+        # mask of all valid negatives
+        mask_anc_neg = self._get_anc_neg_triplet_mask(labels).float()
+        # set invalid negatives to 0
+        anc_neg_sim = all_sim * mask_anc_neg
+        # select maximum sim negatives
+        hardest_neg_sim = anc_neg_sim.max(dim=1, keepdim=True)[0]
+
+        if use_hard_negative_loss:
+            # selective contrastive loss
+            selective_idx = hardest_neg_sim > hardest_pos_sim
+            hardest_pos_sim[selective_idx] = 0.
+
+        loss = F.relu(hardest_neg_sim - hardest_pos_sim + self.margin)
+
+        # calculate average loss (disregarding invalid & easy triplets)
+        loss = torch.sum(loss) / (torch.gt(loss, 1e-16).float().sum() + 1e-16)
+
+        return loss
+
 def remove_right_padded_zeros(tensor):
     # Check if tensor is 1-dimensional or 2-dimensional
     if tensor.dim() == 1:
@@ -167,6 +273,45 @@ class TripletDataset(Dataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
+class OnlineTripletDataset(Dataset):
+    def __init__(self, inflow_data, outflow_data):
+        self.positive_top = True
+        self.inflow_data = inflow_data
+        self.outflow_data = outflow_data
+        self.all_indices = list(range(len(self.inflow_data)))
+        random.shuffle(self.all_indices)  # Shuffle the indices initially
+
+        # Divide the shuffled indices into two partitions.
+        cutoff = len(self.all_indices) // 2
+        self.partition_1 = self.all_indices[:cutoff]
+        self.partition_2 = self.all_indices[cutoff:]
+        self.size = len(self.all_indices)
+
+    def __len__(self):
+        return len(self.inflow_data)
+
+    def __getitem__(self, idx):
+        # pick a random inflow, outflow pair
+        window_idx = -1
+
+        trace_idx = torch.randint(low=0, high=self.size, size=(1,), dtype=torch.int32)
+        anchor = self.inflow_data[trace_idx]
+        positive = self.outflow_data[trace_idx]
+
+        return anchor, positive, trace_idx
+
+    def reset_split(self):
+        self.positive_top = not self.positive_top
+
+        # Reshuffle the indices at the start of each epoch.
+        random.shuffle(self.all_indices)
+
+        # Re-divide the shuffled indices into two partitions.
+        cutoff = len(self.all_indices) // 2
+        self.partition_1 = self.all_indices[:cutoff]
+        self.partition_2 = self.all_indices[cutoff:]
+
+
 class CosineTripletLossEspresso(nn.Module):
     def __init__(self, margin=0.1):
         super(CosineTripletLoss, self).__init__()
@@ -208,7 +353,7 @@ def custom_collate_fn(batch):
     anchors, positives, negatives = zip(*batch)
     
     # Convert numpy arrays to PyTorch tensors
-    anchors = [torch.tensor(anchor, dtype=torch.float32) for anchor in anchors]
+    anchors = [torch.tensor(emb, dtype=torch.float32) for emb in batch]
     positives = [torch.tensor(positive, dtype=torch.float32) for positive in positives]
     negatives = [torch.tensor(negative, dtype=torch.float32) for negative in negatives]
     
@@ -227,23 +372,23 @@ train_outflows = np.load('data/train_outflows_may17_transformer.npy')
 val_outflows = np.load('data/val_outflows_may17_transformer.npy')
 
 # Define the datasets
-train_dataset = TripletDataset(train_inflows, train_outflows)
-val_dataset = TripletDataset(val_inflows, val_outflows)
+train_dataset = OnlineTripletDataset(train_inflows, train_outflows)
+val_dataset = OnlineTripletDataset(val_inflows, val_outflows)
 
 train_sampler = QuadrupleSampler(train_dataset)
 val_sampler = QuadrupleSampler(val_dataset)
 
 # Create the dataloaders
-batch_size = 200
-train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=custom_collate_fn, num_workers=16)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, collate_fn=custom_collate_fn, num_workers=16)
+batch_size = 250
+train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, num_workers=16)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, num_workers=16)
 
 # Instantiate the models
 embedding_size = 64
 inflow_model = EspressoNet(8, special_toks=1, **model_config)
 outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
-checkpoint = torch.load('models/best_model_live_espresso_may17_precomputed.pth')
+checkpoint = torch.load('models/best_model_live_espresso_may17_fixed.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
@@ -253,7 +398,7 @@ inflow_model.to(device)
 outflow_model.to(device)
 
 # Define the loss function and the optimizer
-criterion = CosineTripletLoss()
+criterion = OnlineHardCosineTripletLoss()
 #optimizer = optim.Adam(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=0.0001)
 optimizer = optim.AdamW(list(inflow_model.parameters()) + list(outflow_model.parameters()), lr=.001, betas=(0.9, 0.999), weight_decay=0.001)
 #optimizer = optim.SGD(list(inflow_model.parameters())+list(outflow_model.parameters()), lr=.001, weight_decay=1e-6, momentum=.9, nesterov=True)
@@ -269,7 +414,8 @@ for epoch in range(num_epochs):
     outflow_model.train()
 
     running_loss = 0.0
-    for anchor, positive, negative in train_loader:
+    for embeddings_anc, embeddings_pos, labels in train_loader:
+        '''
         # Move tensors to the correct device
         anchor = anchor.float().to(device)
         positive = positive.float().to(device)
@@ -279,9 +425,18 @@ for epoch in range(num_epochs):
         anchor_embeddings, anchor_chain = outflow_model(anchor[:,3:,:])
         positive_embeddings, positive_chain = outflow_model(positive[:,3:,:])
         negative_embeddings, negative_chain = outflow_model(negative[:,3:,:])
+        '''
+        if(embeddings_anc.shape[0] != 250):
+            continue
+
+        embeddings = torch.cat((embeddings_anc, embeddings_pos), dim=0)
+        embeddings = embeddings.float().to(device)
+        embeddings, chain = outflow_model(embeddings[:,3:,:])
 
         # Compute the loss
-        loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
+        #loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
+        labels = torch.cat((labels, labels))
+        loss = criterion(embeddings, labels)
 
         # Backward pass and optimization
         optimizer.zero_grad()
@@ -300,8 +455,11 @@ for epoch in range(num_epochs):
 
     running_loss = 0.0
     with torch.no_grad():
-        for anchor, positive, negative in val_loader:
+        for embeddings_anc, embeddings_pos, labels in val_loader:
             # Move tensors to the correct device
+            if(embeddings_anc.shape[0] != 250):
+                continue
+            '''
             anchor = anchor.float().to(device)
             positive = positive.float().to(device)
             negative = negative.float().to(device)
@@ -311,9 +469,15 @@ for epoch in range(num_epochs):
             anchor_embeddings, anchor_chain = outflow_model(anchor[:,3:,:])
             positive_embeddings, positive_chain = outflow_model(positive[:,3:,:])
             negative_embeddings, negative_chain = outflow_model(negative[:,3:,:])
+            '''
+            embeddings = torch.cat((embeddings_anc, embeddings_pos), dim=0)
+            embeddings = embeddings.float().to(device)
+            embeddings, chain = outflow_model(embeddings[:,3:,:])
 
             # Compute the loss
-            loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
+            #loss = criterion(anchor_embeddings, positive_embeddings, negative_embeddings)
+            labels = torch.cat((labels, labels))
+            loss = criterion(embeddings, labels)
 
             running_loss += loss.item()
 
@@ -331,5 +495,5 @@ for epoch in range(num_epochs):
             'outflow_model_state_dict': outflow_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-        }, f'models/best_model_live_espresso_may17_fixed.pth')
+        }, f'models/best_model_live_espresso_may17_test.pth')
 

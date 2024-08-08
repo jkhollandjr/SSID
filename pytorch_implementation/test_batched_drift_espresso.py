@@ -58,7 +58,7 @@ outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
 # Load the best models
 #checkpoint = torch.load('models/best_model_dcf_defened_0.00806727527074893.pth')
-checkpoint = torch.load('models/best_model_live_espresso_may17_fixed.pth')
+checkpoint = torch.load('models/best_model_live_espresso_may17_loss.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
 
