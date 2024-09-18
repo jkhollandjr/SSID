@@ -22,12 +22,12 @@ def get_params():
     parser.add_argument('--win_interval', required=False, default=5)
     parser.add_argument('--num_window', required=False, default=11)
     parser.add_argument('--alpha', required=False, default=0.1)  # 96 for DF, 101 for pfp, 201 for awf
-    parser.add_argument('--input', required=False, default='capture/')
-    parser.add_argument('--test', required=False, default='capture/')  # 100 for DF, 30 for pfp, 200 for awf
-    parser.add_argument('--model', required=False, default="capture_sept_")
+    parser.add_argument('--input', required=False, default='preprocessed/')
+    parser.add_argument('--test', required=False, default='preprocessed/')  # 100 for DF, 30 for pfp, 200 for awf
+    parser.add_argument('--model', required=False, default="original_")
     parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard (1) All traces (2) Online semi-hard')
-    parser.add_argument('--load_model1', required=False, default = 'models/replicate_capture_model1_0.004692753776907921.h5')
-    parser.add_argument('--load_model2', required=False, default='models/replicate_capture_model2_0.004692753776907921.h5')
+    parser.add_argument('--load_model1', required=False, default = 'models/best_model1.h5')
+    parser.add_argument('--load_model2', required=False, default='models/best_model2.h5')
     parser.add_argument('--test_set_size', required=False, type=int, default=1000)
     args = parser.parse_args()
     return args

@@ -131,9 +131,9 @@ def create_overlap_window_csv(csv_path, file_list, prefix_pickle_output, interva
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_Decaf_Filtered/')
-    parser.add_argument('--file_list_path', required=False, default='decaf_filtered.txt')
-    parser.add_argument('--prefix_pickle_output', required=False, default='decaf_filtered/')
+    parser.add_argument('--data_path', required=False, default='CrawlE_Proc_20000/')
+    parser.add_argument('--file_list_path', required=False, default='original.txt')
+    parser.add_argument('--prefix_pickle_output', required=False, default='preprocessed/')
 
     args = parser.parse_args()
 

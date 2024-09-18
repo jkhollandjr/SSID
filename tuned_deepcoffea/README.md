@@ -10,4 +10,3 @@ This implementation varies from the DeepCoFFEA approach in that it uses multiple
 To improve performance against traffic obfuscated by delayed or 'dummy' traffic, we also add functionality to simulate the defense on the base traffic while the model is training. This is done by using a variety of torch functions to alter the traffic representations. By simulating the defense in this manner, rather than by simply simulating the defense on the original dataset, the model learns for a larger variety of defense configurations. This improves the model's ability to generalize, especially against randomized defenses, which can alter traffic in many different ways. 
 
 To use the 'live' defense functionality, run preprocessing\_simple.py rather than preprocessing.py. Then, for training and testing, run train\_live.py and test\_batched\_live.py. The final performance can then be found with nn\_classifier.py.  
-

@@ -19,15 +19,14 @@ total_vot = 0
 total_cos = 0
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-test', default='capture/5_test11addn2_w_superpkt.npz')
+parser.add_argument('-test', default='preprocessed/5_test11addn2_w_superpkt.npz')
 parser.add_argument('-flow', default=1000)
 parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
-parser.add_argument('-model1', default='models/model1_best.h5')
-parser.add_argument('-model2', default='models/model2_best.h5')
-parser.add_argument('-output', default="capture_eval.csv")
+parser.add_argument('-model1', default='models/best_model1')
+parser.add_argument('-model2', default='models/best_model2')
+parser.add_argument('-output', default="results.csv")
 args = parser.parse_args()
-
 
 def get_session(gpu_fraction=0.85):
     gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction, allow_growth=True)
@@ -116,6 +115,7 @@ def Cosine_Similarity_eval(tor_embs, exit_embs, similarity_threshold, single_out
         muti_output_list.append(TPR)
         muti_output_list.append(FPR)
         muti_output_list.append(calculate_bdr(TPR, FPR))
+        print(TPR, FPR, calculate_bdr(TPR, FPR))
 
     end_time = time.time()
     total_time = total_time + (end_time - start_emd)
@@ -167,8 +167,8 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     # load triplet models for tor and exit traffic
     from tensorflow import keras
     
-    tor_model = tf.keras.models.load_model(model1_path)
-    exit_model = tf.keras.models.load_model(model2_path)
+    tor_model = tf.keras.models.load_model(model1_path + ".h5")
+    exit_model = tf.keras.models.load_model(model2_path + ".h5")
     tor_model.compile()
     exit_model.compile()
 
@@ -193,99 +193,41 @@ def eval_model(full_or_half, five_or_four, model1_path, model2_path, test_path, 
     correlated_shreshold_value = five_or_four
     thres_seed = thr
 
-    #save data for processing 
-    tor_data = []
-    exit_data = []
     for win in range(11):
-        test_data_tor = test_data['tor'][win][0:500]
-        test_data_exit = test_data['exit'][win][0:500]
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ We are in window %d ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" % win)
 
+        # Get feature embeddings for each window
+        # For example, test_data['tor'][0] means testing tor traffic in window1
+        #              test_data['exit'][win] means testing exit traffic in window1
+
+        test_data_tor = test_data['tor'][win][:full_or_half]
+        test_data_exit = test_data['exit'][win][:full_or_half]
+
+        start_emd = time.time()
         tor_embs = tor_model.predict(test_data_tor)
         exit_embs = exit_model.predict(test_data_exit)
+        end_emd = time.time()
+        # print('[#####] Time for embedding: ', end_emd - start_emd, 'sec')
+        total_emb = total_emb + (end_emd - start_emd)
+        total_time = total_time + (end_emd - start_emd)
 
-        tor_data.append(tor_embs)
-        exit_data.append(exit_embs)
-        
+        # >>>>>>>>>> below are the code for cosine similarity
 
-    dataset = []
-    labels = []
-    for i in range(500):
-        if(i%10==0):
-            print(i)
-        for j in range(500):
-            #if(i != j):
-            #    if(np.random.rand() > .001):
-            #        continue
-            feature_vector = []
-            all_differences = []
-            for k in range(11):
-                tor = tor_data[k][i].reshape(1, -1)
-                exit = exit_data[k][j].reshape(1, -1)
+        if win == 0:
+            # print("init the final cosine similarity output now.....")
+            ini_cosine_output(single_output, tor_embs.shape[0])
+        #print("getting cosine similarity results......")
+        start_cos = time.time()
+        cosine_similarity_table = cosine_similarity(tor_embs, exit_embs)
+        end_cos = time.time()
+        # print('[#####] Time for cosine: ', end_cos - start_cos, 'sec')
+        total_cos = total_cos + (end_cos - start_cos)
+        total_time = total_time + (end_cos - start_cos)
+        threshold_result = threshold_finder(cosine_similarity_table, win, 0, thres_seed, use_global)
 
-                similarity = cosine_similarity(tor, exit)
-                feature_vector.append(similarity.reshape(1)[0])
+        if win in activated_windows:
+            Cosine_Similarity_eval(tor_embs, exit_embs, threshold_result, single_output, win, last_activated_window, correlated_shreshold_value, cosine_similarity_table, muti_output_list)
 
-                if(i==j):
-                    label = 1.0
-                else:
-                    label = 0.0
-            
-                difference = tor - exit
-                all_differences.append(similarity)
-            dataset.append(np.array(all_differences))
-            labels.append(label)
-
-    dataset = np.asarray(dataset)
-    labels = np.asarray(labels).astype(np.float32)
-    np.save('capture_train.npy', dataset)
-    np.save('capture_labels_train.npy', labels)
-
-    #save data for processing 
-    tor_data = []
-    exit_data = []
-    for win in range(11):
-        test_data_tor = test_data['tor'][win][500:1000]
-        test_data_exit = test_data['exit'][win][500:1000]
-
-        tor_embs = tor_model.predict(test_data_tor)
-        exit_embs = exit_model.predict(test_data_exit)
-
-        tor_data.append(tor_embs)
-        exit_data.append(exit_embs)
-        
-    dataset = []
-    labels = []
-    for i in range(500):
-        if(i%10==0):
-            print(i)
-        for j in range(500):
-            #if(i != j):
-            #    if(np.random.rand() > .001):
-            #        continue
-            feature_vector = []
-            all_differences = []
-            for k in range(11):
-                tor = tor_data[k][i].reshape(1, -1)
-                exit = exit_data[k][j].reshape(1, -1)
-
-                similarity = cosine_similarity(tor, exit)
-                feature_vector.append(similarity.reshape(1)[0])
-
-                if(i==j):
-                    label = 1.0
-                else:
-                    label = 0.0
-            
-                difference = tor - exit
-                all_differences.append(similarity)
-            dataset.append(np.array(all_differences))
-            labels.append(label)
-
-    dataset = np.asarray(dataset)
-    labels = np.asarray(labels).astype(np.float32)
-    np.save('capture_test.npy', dataset)
-    np.save('capture_labels_test.npy', labels)
-    exit()
 
 if __name__ == "__main__":
 
@@ -323,4 +265,3 @@ if __name__ == "__main__":
     print("total_cos: " + str(total_cos))
     print("total_vot: " + str(total_vot))
     print("total_emb: " + str(total_emb))
-

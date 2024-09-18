@@ -4,8 +4,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Sampler
 import random
-from orig_model import DFModel, DFModelWithAttention
-from traffic_utils import insert_dummy_packets_torch, calculate_inter_packet_times, calculate_times_with_directions, calculate_cumulative_traffic, calculate_cumulative_traffic_torch, calculate_inter_packet_times_torch, insert_dummy_packets_torch_exponential
 import torch.nn.functional as F
 import math
 from espresso import EspressoNet
@@ -388,9 +386,11 @@ embedding_size = 64
 inflow_model = EspressoNet(8, special_toks=1, **model_config)
 outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
+'''
 checkpoint = torch.load('models/best_model_live_espresso_may17_fixed.pth')
 inflow_model.load_state_dict(checkpoint['inflow_model_state_dict'])
 outflow_model.load_state_dict(checkpoint['outflow_model_state_dict'])
+'''
 
 # Move models to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

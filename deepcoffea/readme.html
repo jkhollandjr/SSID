@@ -1,0 +1,30 @@
+<h1 id="deepcoffea-implementation">DeepCoFFEA Implementation</h1>
+<h3 id="description">Description</h3>
+<p>This folder contains a modified implementation of <strong>DeepCoFFEA: Improved Flow Correlation Attacks on Tor via Metric Learning and Amplification</strong>, which can be found at: https://github.com/traffic-analysis/deepcoffea.</p>
+<p>Improvements include faster training options (online triplet loss and randomly selected triplets), streamlined preprocessing code, and more sophisticated voting mechanisms (see embedding_combination folder).</p>
+<p>For a usefule online triplet learning description, see: https://omoindrot.github.io/triplet-loss.</p>
+<h3 id="running-the-attack">Running the Attack</h3>
+<p>To run the attack, follow the instructions from the DeepCoFFEA repository (reproduced below):</p>
+<ol type="1">
+<li>Gather flow pairs whose packet counts &gt; threshold per window. Consider the arguments regarding the data path, the output path (which will save a text file with metadata) and the threshold.</li>
+</ol>
+<pre><code>python filter.py (--data\_path &lt;your_data_path&gt; --output\_path &lt;output_text_file&gt; --threshold &lt;thresh_value&gt;)</code></pre>
+<ol start="2" type="1">
+<li>Create formatted-input pickles to feed them to triplet network. Arguments include the data path, the metadata file list from the previous step, and an output folder to save the preprocessed data. Then, run the code. This code will create 11 pickle files in which each file carries the partial trace for each window.</li>
+</ol>
+<pre><code>python new_dcf_parse.py (--data\_path &lt;your_data_path&gt; --file\_list\_path &lt;previous_text_file&gt; --prefix\_pickle\_output &lt;preprocessed_data_folder&gt;)</code></pre>
+<ol start="3" type="1">
+<li>Train FENs using pickle files created by new_dcf_parse.py. Configure the arguments as needed. For example,</li>
+</ol>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1"><span class="ex">python</span> train_fens.py (--input <span class="op">&lt;</span>preprocessed_data_folder<span class="op">&gt;</span> --model <span class="op">&lt;</span>your_model_path<span class="op">&gt;</span> --test <span class="op">&lt;</span>test_set_path<span class="op">&gt;</span>)</a></code></pre></div>
+<p>This script will save testing npz file in <test_set_path>, and trained models in <your_model_path>. Note that it defaults to randomly picking the negative example for the triplet selection, while the original technique picked semi-hard negatives.j</p>
+<p>We stopped training when loss = 0.006 (DeepCorr set) and loss = 0.002 (our new set).</p>
+<ol start="4" type="1">
+<li>Evaluate the two trained FENs and test dataset (eval_dcf.py). Configure arguments as needed. For example,</li>
+</ol>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1"><span class="ex">python</span> eval_dcf.py (--test <span class="op">&lt;</span>your_input_path<span class="op">&gt;</span> --model1 <span class="op">&lt;</span>your_model1_path<span class="op">&gt;</span> --model2 <span class="op">&lt;</span>your_model2_path<span class="op">&gt;</span> --output <span class="op">&lt;</span>your_output_path<span class="op">&gt;</span>)</a></code></pre></div>
+<p>The script above will generate TPRs, FPRs, and BDRs when using 9 out 11 window results.</p>
+<p><em>However</em>, if you’d like to use the more sophisticated window combinations, then execute the following commands (this is done instead of running eval_dcf.py).</p>
+<pre><code>python eval_dcf_save_dataset.py (--test &lt;your_input_path&gt; --model1 &lt;your_model1_path&gt; --model2 &lt;your_model2_path&gt; --output &lt;your_output_path&gt;)
+python embedding_combination/nn_embedding_classifier.py # Or, choose another script</code></pre>
+<p>This will save the window distance dataset to file and then uses the distances to train the classifier. Note that this technique was not used in the original DeepCoFFEA paper, but it will likely increase performance.</p>
