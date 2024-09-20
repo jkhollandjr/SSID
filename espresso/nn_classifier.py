@@ -1,21 +1,24 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataset import random_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-import numpy as np
+from sklearn.metrics import confusion_matrix, roc_curve
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from sklearn.metrics import roc_curve
+import torch.nn.functional as F
+import numpy as np
+import argparse
+
+# Argument parser for command-line inputs
+parser = argparse.ArgumentParser(description="Train and evaluate a predictor model.")
+parser.add_argument('--val_data_path', type=str, default='data/val_output.npy', help='Path to validation data (numpy).')
+parser.add_argument('--test_data_path', type=str, default='data/test_output.npy', help='Path to test data (numpy).')
+parser.add_argument('--batch_size', type=int, default=64, help='Batch size for DataLoader.')
+parser.add_argument('--num_epochs', type=int, default=50, help='Number of epochs for training.')
+args = parser.parse_args()
 
 # Load the data
-val_data = np.load('data/dcf_val_distances_espresso_drift.npy')
-test_data = np.load('data/dcf_test_distances_espresso_drift.npy')
+val_data = np.load(args.val_data_path)
+test_data = np.load(args.test_data_path)
 
-cutoff = 92
-cutoff = 28
 cutoff = 108
 # Split the data into inputs and targets
 val_inputs = val_data[:, :cutoff]
@@ -39,9 +42,8 @@ train_dataset = MyDataset(val_inputs, val_targets)
 val_dataset = MyDataset(test_inputs, test_targets)
 
 # Create PyTorch dataloaders
-batch_size = 64
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
 class Predictor(nn.Module):
     def __init__(self):
@@ -68,8 +70,7 @@ criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
 # Training loop
-num_epochs = 50
-for epoch in range(num_epochs):
+for epoch in range(args.num_epochs):
     # Training
     model.train()
     running_loss = 0.0
@@ -114,7 +115,7 @@ for epoch in range(num_epochs):
     val_loss = running_loss / len(val_loader)
     val_accuracy = correct_predictions / total_predictions
 
-    print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
+    print(f'Epoch {epoch+1}/{args.num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
 
 # Put the model in evaluation mode
 model.eval()
@@ -122,9 +123,6 @@ model.eval()
 # Lists to store the model's outputs and the actual targets
 outputs_list = []
 targets_list = []
-
-inflows = np.load("data/test_inflows.npy")
-outflows = np.load("data/test_outflows.npy")
 
 # Pass the validation data through the model
 with torch.no_grad():
@@ -176,3 +174,4 @@ fpr = [str(x) for x in list(fpr)]
 
 print(','.join(tpr))
 print(','.join(fpr))
+

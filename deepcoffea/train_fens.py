@@ -26,8 +26,8 @@ def get_params():
     parser.add_argument('--test', required=False, default='preprocessed/')  # 100 for DF, 30 for pfp, 200 for awf
     parser.add_argument('--model', required=False, default="original_")
     parser.add_argument('--loss_type', type=int, required=False, default=1, help='Type of triplet loss: (0) Original semi-hard (1) All traces (2) Online semi-hard')
-    parser.add_argument('--load_model1', required=False, default = 'models/best_model1.h5')
-    parser.add_argument('--load_model2', required=False, default='models/best_model2.h5')
+    parser.add_argument('--load_model1', required=False)
+    parser.add_argument('--load_model2', required=False)
     parser.add_argument('--test_set_size', required=False, type=int, default=1000)
     args = parser.parse_args()
     return args
@@ -318,12 +318,12 @@ if __name__ == '__main__':
     shared_model1 = create_model(input_shape=input_shape1, emb_size=64, model_name='tor')  ##
     shared_model2 = create_model(input_shape=input_shape2, emb_size=64, model_name='exit')  ##
 
-    if(args.load_model1 != ''):
+    if(args.load_model1):
         print("LOADING MODEL 1")
         shared_model1 = tf.keras.models.load_model(args.load_model1)
         shared_model1.compile()
 
-    if(args.load_model2 != ''):
+    if(args.load_model2):
         print("LOADING MODEL 2")
         shared_model2 = tf.keras.models.load_model(args.load_model2)
         shared_model2.compile()

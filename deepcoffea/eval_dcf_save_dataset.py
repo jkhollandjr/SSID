@@ -23,8 +23,8 @@ parser.add_argument('-test', default='preprocessed/5_test11addn2_w_superpkt.npz'
 parser.add_argument('-flow', default=1000)
 parser.add_argument('-tor_len', default=500)
 parser.add_argument('-exit_len', default=800)
-parser.add_argument('-model1', default='models/best_model1.h5')
-parser.add_argument('-model2', default='models/best_model2.h5')
+parser.add_argument('-model1', default='models/model1_best.h5')
+parser.add_argument('-model2', default='models/model2_best.h5')
 parser.add_argument('-output', default="capture_eval.csv")
 args = parser.parse_args()
 

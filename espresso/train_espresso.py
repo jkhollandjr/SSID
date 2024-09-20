@@ -1,3 +1,15 @@
+'''
+python train_triplet_model.py \
+    --train_inflows data/train_inflows.npy \
+    --val_inflows data/val_inflows.npy \
+    --train_outflows data/train_outflows.npy \
+    --val_outflows data/val_outflows.npy \
+    --save_model_path models/best_model.pth \
+    --batch_size 128 \
+    --num_epochs 200 \
+    --device cuda \
+    --learning_rate 0.0001
+'''
 import argparse
 import math
 import random
@@ -118,7 +130,7 @@ class OnlineHardCosineTripletLoss(nn.Module):
 
 
 class TripletLoss(nn.Module):
-    def __init__(self, margin=1.0):
+    def __init__(self, margin=0.1):
         super(TripletLoss, self).__init__()
         self.margin = margin
 
@@ -285,16 +297,16 @@ model_config = {
 def main():
     parser = argparse.ArgumentParser(description='Triplet Loss Training Script')
     parser.add_argument(
-        '--train_inflows', type=str, required=True, help='Path to train inflows numpy file'
+        '--train_inflows', type=str, default='data/train_inflows.npy', help='Path to train inflows numpy file'
     )
     parser.add_argument(
-        '--val_inflows', type=str, required=True, help='Path to validation inflows numpy file'
+        '--val_inflows', type=str, default='data/val_inflows.npy', help='Path to validation inflows numpy file'
     )
     parser.add_argument(
-        '--train_outflows', type=str, required=True, help='Path to train outflows numpy file'
+        '--train_outflows', type=str, default='data/train_outflows.npy', help='Path to train outflows numpy file'
     )
     parser.add_argument(
-        '--val_outflows', type=str, required=True, help='Path to validation outflows numpy file'
+        '--val_outflows', type=str, default='data/val_outflows.npy', help='Path to validation outflows numpy file'
     )
     parser.add_argument(
         '--checkpoint', type=str, required=False, help='Path to model checkpoint file'
@@ -311,6 +323,8 @@ def main():
     parser.add_argument(
         '--num_epochs', type=int, default=150, help='Total number of epochs to train'
     )
+    parser.add_argument(
+        '--switch_loss_type', type=int, default=100, help='Switch from triplet loss to online hard triplet loss')
     parser.add_argument(
         '--device', type=str, default='cuda', help='Device to use for training (e.g., "cuda" or "cpu")'
     )
@@ -383,14 +397,14 @@ def main():
     # Define the optimizer with weight decay
     optimizer = optim.AdamW(
         list(inflow_model.parameters()) + list(outflow_model.parameters()),
-        lr=0.0001,
+        lr=0.001,
         betas=(0.9, 0.999),
-        weight_decay=1e-4,  # Adjusted weight decay for better regularization
+        weight_decay=1e-3,  # Adjusted weight decay for better regularization
     )
 
     # Define the learning rate scheduler with warm-up
     num_epochs = args.num_epochs
-    warmup_epochs = 5  # Number of warm-up epochs
+    warmup_epochs = 10  # Number of warm-up epochs
 
     def lr_lambda(current_epoch):
         if current_epoch < warmup_epochs:
@@ -410,8 +424,8 @@ def main():
     # Training loop
     best_val_loss = float("inf")
     for epoch in range(num_epochs):
-        if epoch < 100:
-            criterion = TripletLoss(margin=1.0)
+        if epoch < args.switch_loss_type:
+            criterion = TripletLoss(margin=0.1)
             train_loader = train_loader_triplet
             val_loader = val_loader_triplet
             train_dataset_triplet.reset_split()
@@ -429,7 +443,7 @@ def main():
 
         running_loss = 0.0
         for batch in train_loader:
-            if epoch < 100:
+            if epoch < args.switch_loss_type:
                 # TripletDataset returns anchor, positive, negative
                 anchor, positive, negative = batch
                 # Move tensors to device
@@ -470,7 +484,7 @@ def main():
         running_loss = 0.0
         with torch.no_grad():
             for batch in val_loader:
-                if epoch < 100:
+                if epoch < args.switch_loss_type:
                     # TripletDataset returns anchor, positive, negative
                     anchor, positive, negative = batch
                     # Move tensors to device
@@ -499,13 +513,26 @@ def main():
         # Optionally, print learning rate for debugging
         current_lr = scheduler.get_last_lr()[0]
         print(
-            f'Epoch {epoch + 1}/{num_epochs}, LR: {current_lr:.6f}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}'
+            f'Epoch {epoch + 1}/{num_epochs}, LR: {current_lr:.6f}, Train Loss: {train_loss:.7f}, Val Loss: {val_loss:.7f}'
         )
+
+        '''
+        torch.save(
+            {
+                'epoch': epoch,
+                'inflow_model_state_dict': inflow_model.state_dict(),
+                'outflow_model_state_dict': outflow_model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val_loss': best_val_loss,
+            }, 'models/epoch_{}.pth'.format(str(epoch)))
+        '''
 
         # Save the model if it's the best one so far
         if val_loss < best_val_loss:
             print("Best model so far!")
             best_val_loss = val_loss
+            if epoch == args.switch_loss_type:
+                best_val_loss = float("inf")
             torch.save(
                 {
                     'epoch': epoch,
