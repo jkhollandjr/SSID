@@ -1,5 +1,5 @@
 '''
-python train_triplet_model.py \
+python train_espresso.py \
     --train_inflows data/train_inflows.npy \
     --val_inflows data/val_inflows.npy \
     --train_outflows data/train_outflows.npy \
@@ -431,7 +431,7 @@ def main():
             train_dataset_triplet.reset_split()
             val_dataset_triplet.reset_split()
         else:
-            criterion = OnlineHardCosineTripletLoss(margin=0.1)
+            criterion = OnlineHardCosineTripletLoss(margin=0.5)
             train_loader = train_loader_online
             val_loader = val_loader_online
             train_dataset_online.reset_split()
@@ -526,13 +526,13 @@ def main():
                 'best_val_loss': best_val_loss,
             }, 'models/epoch_{}.pth'.format(str(epoch)))
         '''
+        if epoch == args.switch_loss_type:
+            best_val_loss = float("inf")
 
         # Save the model if it's the best one so far
         if val_loss < best_val_loss:
             print("Best model so far!")
             best_val_loss = val_loss
-            if epoch == args.switch_loss_type:
-                best_val_loss = float("inf")
             torch.save(
                 {
                     'epoch': epoch,
