@@ -1,27 +1,19 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataset import random_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, roc_curve
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from sklearn.metrics import roc_curve
+import argparse
+import os
 
-# Load the data
-val_data = np.load('data/dcf_val_distances_espresso_drift.npy')
-test_data = np.load('data/dcf_test_distances_espresso_drift.npy')
-
-cutoff = 92
-cutoff = 28
-cutoff = 108
-# Split the data into inputs and targets
-val_inputs = val_data[:, :cutoff]
-val_targets = val_data[:, -1]
-test_inputs = test_data[:, :cutoff]
-test_targets = test_data[:, -1]
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train and evaluate a model on inflow and outflow data.")
+    parser.add_argument('--data_dir', type=str, default='data/', help="Directory containing the validation and test .npy files.")
+    parser.add_argument('--model_path', type=str, default='models/predictor_model.pth', help="Path to save the trained model.")
+    return parser.parse_args()
 
 # Create PyTorch datasets
 class MyDataset(Dataset):
@@ -35,18 +27,10 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         return torch.tensor(self.inputs[idx], dtype=torch.float), torch.tensor(self.targets[idx], dtype=torch.float)
 
-train_dataset = MyDataset(val_inputs, val_targets)
-val_dataset = MyDataset(test_inputs, test_targets)
-
-# Create PyTorch dataloaders
-batch_size = 64
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
 class Predictor(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size):
         super(Predictor, self).__init__()
-        self.fc1 = nn.Linear(cutoff, 64)
+        self.fc1 = nn.Linear(input_size, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 1)
@@ -58,121 +42,138 @@ class Predictor(nn.Module):
         x = torch.sigmoid(self.fc4(x))
         return x
 
-# Instantiate the model and move it to GPU if available
-model = Predictor()
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model.to(device)
+def main():
+    args = parse_args()
 
-# Define the loss function and the optimizer
-criterion = nn.BCELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.00001)
+    # Load the data
+    val_data = np.load(os.path.join(args.data_dir, 'dcf_val_distances.npy'))
+    test_data = np.load(os.path.join(args.data_dir, 'dcf_test_distances.npy'))
 
-# Training loop
-num_epochs = 50
-for epoch in range(num_epochs):
-    # Training
-    model.train()
-    running_loss = 0.0
-    for inputs, targets in train_loader:
-        # Move tensors to the correct device
-        inputs, targets = inputs.to(device), targets.to(device)
+    cutoff = 12
+    # Split the data into inputs and targets
+    val_inputs = val_data[:, :cutoff]
+    val_targets = val_data[:, -1]
+    test_inputs = test_data[:, :cutoff]
+    test_targets = test_data[:, -1]
 
-        # Forward pass
-        outputs = model(inputs[:,:cutoff])
-        loss = criterion(outputs, targets.unsqueeze(1))
+    train_dataset = MyDataset(val_inputs, val_targets)
+    val_dataset = MyDataset(test_inputs, test_targets)
 
-        # Backward pass and optimization
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    # Create PyTorch dataloaders
+    batch_size = 64
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-        running_loss += loss.item()
+    # Instantiate the model and move it to GPU if available
+    model = Predictor(input_size=cutoff)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
 
-    train_loss = running_loss / len(train_loader)
+    # Define the loss function and the optimizer
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
-    # Validation
-    model.eval()
-    running_loss = 0.0
-    correct_predictions = 0
-    total_predictions = 0
-    with torch.no_grad():
-        for inputs, targets in val_loader:
+    # Training loop
+    num_epochs = 50
+    for epoch in range(num_epochs):
+        # Training
+        model.train()
+        running_loss = 0.0
+        for inputs, targets in train_loader:
             # Move tensors to the correct device
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Forward pass
-            outputs = model(inputs[:,:cutoff])
+            outputs = model(inputs)
             loss = criterion(outputs, targets.unsqueeze(1))
 
-            # Compute the number of correct predictions
-            preds = outputs >= 0.5
-            correct_predictions += (preds == targets.unsqueeze(1)).sum().item()
-            total_predictions += targets.size(0)
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
             running_loss += loss.item()
 
-    val_loss = running_loss / len(val_loader)
-    val_accuracy = correct_predictions / total_predictions
+        train_loss = running_loss / len(train_loader)
 
-    print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
+        # Validation
+        model.eval()
+        running_loss = 0.0
+        correct_predictions = 0
+        total_predictions = 0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
 
-# Put the model in evaluation mode
-model.eval()
+                outputs = model(inputs)
+                loss = criterion(outputs, targets.unsqueeze(1))
 
-# Lists to store the model's outputs and the actual targets
-outputs_list = []
-targets_list = []
+                preds = outputs >= 0.5
+                correct_predictions += (preds == targets.unsqueeze(1)).sum().item()
+                total_predictions += targets.size(0)
 
-inflows = np.load("data/test_inflows.npy")
-outflows = np.load("data/test_outflows.npy")
+                running_loss += loss.item()
 
-# Pass the validation data through the model
-with torch.no_grad():
-    for inputs, targets in val_loader:
-        # Move tensors to the correct device
-        inputs, targets = inputs.to(device), targets.to(device)
+        val_loss = running_loss / len(val_loader)
+        val_accuracy = correct_predictions / total_predictions
 
-        # Forward pass
-        outputs = model(inputs[:,:cutoff]) #output is [64, 1]
+        print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
 
-        # Store the outputs and targets
-        outputs_list.extend(outputs.cpu().numpy())
-        targets_list.extend(targets.cpu().numpy())
+    # Save the trained model
+    torch.save(model.state_dict(), args.model_path)
 
-# Compute the ROC curve
-fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=True)
+    # Put the model in evaluation mode
+    model.eval()
 
-new = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
-thresholds = np.concatenate([new, thresholds])
-print(thresholds)
-counter = 0
-for threshold in thresholds:
-    counter += 1
-    if counter == 110:
-        continue
-    # Convert the probabilities to binary outputs
-    preds = (np.array(outputs_list) >= threshold).astype(int)
+    # Lists to store the model's outputs and the actual targets
+    outputs_list = []
+    targets_list = []
 
-    # Compute the confusion matrix
-    cm = confusion_matrix(targets_list, preds)
+    # Pass the validation data through the model
+    with torch.no_grad():
+        for inputs, targets in val_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
 
-    TN = cm[0][0]
-    FP = cm[0][1]
-    FN = cm[1][0]
-    TP = cm[1][1]
+            outputs = model(inputs)
 
-    # Calculate the rates
-    TPR = TP / (TP + FN)
-    FPR = FP / (FP + TN)
-    TNR = TN / (TN + FP)
-    FNR = FN / (TP + FN)
+            outputs_list.extend(outputs.cpu().numpy())
+            targets_list.extend(targets.cpu().numpy())
 
-    print(f"Threshold: {threshold:.7f}")
-    print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
-    print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
+    # Compute the ROC curve
+    fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=True)
 
-tpr = [str(x) for x in list(tpr)]
-fpr = [str(x) for x in list(fpr)]
+    new = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
+    thresholds = np.concatenate([new, thresholds])
+    print(thresholds)
 
-print(','.join(tpr))
-print(','.join(fpr))
+    counter = 0
+    for threshold in thresholds:
+        counter += 1
+        if counter == 110:
+            continue
+        preds = (np.array(outputs_list) >= threshold).astype(int)
+        cm = confusion_matrix(targets_list, preds)
+
+        TN = cm[0][0]
+        FP = cm[0][1]
+        FN = cm[1][0]
+        TP = cm[1][1]
+
+        TPR = TP / (TP + FN)
+        FPR = FP / (FP + TN)
+        TNR = TN / (TN + FP)
+        FNR = FN / (TP + FN)
+
+        print(f"Threshold: {threshold:.7f}")
+        print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
+        print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
+
+    tpr = [str(x) for x in list(tpr)]
+    fpr = [str(x) for x in list(fpr)]
+
+    print(','.join(tpr))
+    print(','.join(fpr))
+
+if __name__ == "__main__":
+    main()
+
