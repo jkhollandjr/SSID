@@ -25,6 +25,9 @@ from espresso import EspressoNet
 
 torch.set_printoptions(threshold=5000)
 
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
 
 class OnlineHardCosineTripletLoss(nn.Module):
     def __init__(self, margin=0.1):
@@ -200,6 +203,41 @@ class TripletDataset(Dataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
+class FixedTripletDataset(Dataset):
+    def __init__(self, inflow_data, outflow_data):
+        self.inflow_data = inflow_data
+        self.outflow_data = outflow_data
+        self.triplets = []
+        self._precompute_triplets()
+
+    def _precompute_triplets(self):
+        # Generate all possible indices
+        all_indices = list(range(len(self.inflow_data)))
+        # For simplicity, we'll create a fixed number of triplets
+        num_triplets = len(self.inflow_data)
+        for _ in range(num_triplets):
+            anchor_idx = random.choice(all_indices)
+            # Ensure positive and anchor are the same
+            positive_idx = anchor_idx
+            # Choose a negative index different from the anchor
+            negative_idx = random.choice([idx for idx in all_indices if idx != anchor_idx])
+            self.triplets.append((anchor_idx, positive_idx, negative_idx))
+
+    def __len__(self):
+        return len(self.triplets)
+
+    def __getitem__(self, idx):
+        anchor_idx, positive_idx, negative_idx = self.triplets[idx]
+        anchor = self.inflow_data[anchor_idx]
+        positive = self.outflow_data[positive_idx]
+        negative = self.outflow_data[negative_idx]
+
+        return (
+            torch.tensor(anchor, dtype=torch.float32),
+            torch.tensor(positive, dtype=torch.float32),
+            torch.tensor(negative, dtype=torch.float32),
+        )
+
 
 class OnlineTripletDataset(Dataset):
     def __init__(self, inflow_data, outflow_data):
@@ -235,6 +273,34 @@ class OnlineTripletDataset(Dataset):
         cutoff = len(self.all_indices) // 2
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
+
+class FixedOnlineTripletDataset(Dataset):
+    def __init__(self, inflow_data, outflow_data):
+        self.inflow_data = inflow_data
+        self.outflow_data = outflow_data
+        self.embeddings = []
+        self.labels = []
+        self._precompute_embeddings()
+
+    def _precompute_embeddings(self):
+        # Assuming labels are indices for simplicity
+        for idx in range(len(self.inflow_data)):
+            anchor = self.inflow_data[idx]
+            positive = self.outflow_data[idx]
+            self.embeddings.append((anchor, positive))
+            self.labels.append(idx)  # Using the index as the label
+
+    def __len__(self):
+        return len(self.embeddings)
+
+    def __getitem__(self, idx):
+        anchor, positive = self.embeddings[idx]
+        label = self.labels[idx]
+        return (
+            torch.tensor(anchor, dtype=torch.float32),
+            torch.tensor(positive, dtype=torch.float32),
+            torch.tensor(label, dtype=torch.int64),
+        )
 
 
 class QuadrupleSampler(Sampler):
@@ -321,10 +387,14 @@ def main():
         '--batch_size', type=int, default=100, help='Batch size for training and validation'
     )
     parser.add_argument(
-        '--num_epochs', type=int, default=150, help='Total number of epochs to train'
+        '--num_epochs', type=int, default=120, help='Total number of epochs to train'
     )
     parser.add_argument(
         '--switch_loss_type', type=int, default=100, help='Switch from triplet loss to online hard triplet loss')
+    parser.add_argument(
+        '--learning_rate', type=float, default=.001, help='Initial learning rate for the optimizer')
+    parser.add_argument(
+        '--weight_decay', type=float, default=.001, help='Weight decay (L2 penalty) for the optimizer')
     parser.add_argument(
         '--device', type=str, default='cuda', help='Device to use for training (e.g., "cuda" or "cpu")'
     )
@@ -338,10 +408,10 @@ def main():
 
     # Define the datasets
     train_dataset_triplet = TripletDataset(train_inflows, train_outflows)
-    val_dataset_triplet = TripletDataset(val_inflows, val_outflows)
+    val_dataset_triplet = FixedTripletDataset(val_inflows, val_outflows)
 
     train_dataset_online = OnlineTripletDataset(train_inflows, train_outflows)
-    val_dataset_online = OnlineTripletDataset(val_inflows, val_outflows)
+    val_dataset_online = FixedOnlineTripletDataset(val_inflows, val_outflows)
 
     train_sampler_triplet = QuadrupleSampler(train_dataset_triplet)
     val_sampler_triplet = QuadrupleSampler(val_dataset_triplet)
@@ -360,6 +430,7 @@ def main():
     val_loader_triplet = DataLoader(
         val_dataset_triplet,
         batch_size=args.batch_size,
+        shuffle=False,
         sampler=val_sampler_triplet,
         num_workers=16,
         pin_memory=True,
@@ -375,6 +446,7 @@ def main():
     val_loader_online = DataLoader(
         val_dataset_online,
         batch_size=args.batch_size,
+        shuffle=False,
         sampler=val_sampler_online,
         num_workers=16,
         pin_memory=True,
@@ -397,9 +469,9 @@ def main():
     # Define the optimizer with weight decay
     optimizer = optim.AdamW(
         list(inflow_model.parameters()) + list(outflow_model.parameters()),
-        lr=0.001,
+        lr=args.learning_rate,
         betas=(0.9, 0.999),
-        weight_decay=1e-3,  # Adjusted weight decay for better regularization
+        weight_decay=args.weight_decay,  # Adjusted weight decay for better regularization
     )
 
     # Define the learning rate scheduler with warm-up
@@ -429,13 +501,11 @@ def main():
             train_loader = train_loader_triplet
             val_loader = val_loader_triplet
             train_dataset_triplet.reset_split()
-            val_dataset_triplet.reset_split()
         else:
             criterion = OnlineHardCosineTripletLoss(margin=0.5)
             train_loader = train_loader_online
             val_loader = val_loader_online
             train_dataset_online.reset_split()
-            val_dataset_online.reset_split()
 
         # Training
         inflow_model.train()
@@ -510,7 +580,6 @@ def main():
 
         val_loss = running_loss / len(val_loader)
 
-        # Optionally, print learning rate for debugging
         current_lr = scheduler.get_last_lr()[0]
         print(
             f'Epoch {epoch + 1}/{num_epochs}, LR: {current_lr:.6f}, Train Loss: {train_loss:.7f}, Val Loss: {val_loss:.7f}'
@@ -543,8 +612,6 @@ def main():
                 },
                 args.save_model_path,
             )
-
-        # Optionally, implement other performance improvements here
 
 
 if __name__ == '__main__':

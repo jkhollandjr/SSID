@@ -61,7 +61,6 @@ model_config = {
 }
 
 # Instantiate the models
-embedding_size = 64
 inflow_model = EspressoNet(8, special_toks=1, **model_config)
 outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
@@ -89,30 +88,6 @@ val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_in
 # Initialize the outputs
 val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 92))
 test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 92))
-
-def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow_model):
-    all_cosine_similarities = []
-
-    inflow_window = inflow_traces[:, :, :] 
-    outflow_window = outflow_traces[:, :, :]
-
-    inflow_window = torch.from_numpy(inflow_window).float()
-    outflow_window = torch.from_numpy(outflow_window).float()
-
-    inflow_embeddings, _ = outflow_model(inflow_window.to(device)[:,3:,:])
-    outflow_embeddings, _ = outflow_model(outflow_window.to(device)[:,3:,:])
-
-    inflow_embeddings = inflow_embeddings.reshape(256, 92, 64)
-    outflow_embeddings = outflow_embeddings.reshape(256, 92, 64)
-
-    for i in range(92):
-        inflow_window_embedding = inflow_embeddings[:,i,:]
-        outflow_window_embedding = outflow_embeddings[:,i,:]
-
-        cosine_similarities = F.cosine_similarity(inflow_window_embedding, outflow_window_embedding).detach().cpu().numpy()
-        all_cosine_similarities.append(cosine_similarities)
-
-    return np.stack(all_cosine_similarities, axis=1)
 
 def find_closest(packet_time, other_flow_times):
     if other_flow_times.size == 0:
@@ -167,45 +142,99 @@ def calculate_proportions(trace1, trace2, sizes_trace1, sizes_trace2, thresholds
 
     return np.array(proportions)
 
-def process_data(inflows, outflows, output_array, batch_size):
+def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow_model):
+    # Compute embeddings
+    inflow_window = torch.from_numpy(inflow_traces[:, :, :]).float().to(device)
+    outflow_window = torch.from_numpy(outflow_traces[:, :, :]).float().to(device)
+
+    with torch.no_grad():
+        inflow_embeddings, _ = inflow_model(inflow_window[:, 3:, :])
+        outflow_embeddings, _ = outflow_model(outflow_window[:, 3:, :])
+
+    B_inflow = inflow_embeddings.shape[0]
+    B_outflow = outflow_embeddings.shape[0]
+
+    inflow_embeddings = inflow_embeddings.reshape(B_inflow, 92, 64)
+    outflow_embeddings = outflow_embeddings.reshape(B_outflow, 92, 64)
+
+    all_cosine_similarities = np.zeros((B_inflow, B_outflow, 92))
+
+    for i in range(92):
+        inflow_window_embedding = inflow_embeddings[:, i, :]  # shape (B_inflow, 64)
+        outflow_window_embedding = outflow_embeddings[:, i, :]  # shape (B_outflow, 64)
+
+        # Compute pairwise cosine similarities between inflow and outflow embeddings
+        inflow_exp = inflow_window_embedding.unsqueeze(1)  # shape (B_inflow, 1, 64)
+        outflow_exp = outflow_window_embedding.unsqueeze(0)  # shape (1, B_outflow, 64)
+
+        numerator = (inflow_exp * outflow_exp).sum(dim=2)  # shape (B_inflow, B_outflow)
+        inflow_norm = inflow_window_embedding.norm(dim=1).unsqueeze(1)  # shape (B_inflow, 1)
+        outflow_norm = outflow_window_embedding.norm(dim=1).unsqueeze(0)  # shape (1, B_outflow)
+        denominator = inflow_norm * outflow_norm  # shape (B_inflow, B_outflow)
+        cosine_similarities = (numerator / denominator).cpu().numpy()  # shape (B_inflow, B_outflow)
+
+        # Store the cosine similarities
+        all_cosine_similarities[:, :, i] = cosine_similarities
+
+    return all_cosine_similarities  # shape (B_inflow, B_outflow, 92)
+
+def process_data(inflows, outflows, batch_size):
     num_inflows = len(inflows)
     num_outflows = len(outflows)
 
-    output_array = np.zeros((num_inflows * batch_size, 109))
+    # The output array will store results for every inflow-outflow pair
+    output_array = np.zeros((num_inflows * num_outflows, 109))
 
-    for idx, inflow_example in enumerate(inflows):
-        selected_outflow_indices = random.sample(range(num_outflows), batch_size)
-        selected_outflows = outflows[selected_outflow_indices]
+    # Determine batch sizes for inflow and outflow
+    # Adjust B_inflow and B_outflow such that B_inflow * B_outflow <= batch_size
+    # For example, batch_size = 256, B_inflow = 16, B_outflow = 16
+    B_inflow = int(np.sqrt(batch_size))
+    B_outflow = int(np.sqrt(batch_size))
 
-        inflow_batch = np.repeat(inflow_example[np.newaxis, ...], batch_size, axis=0)
+    for inflow_start in range(0, num_inflows, B_inflow):
+        print(inflow_start)
+        inflow_end = min(inflow_start + B_inflow, num_inflows)
+        inflow_batch = inflows[inflow_start:inflow_end]
+        inflow_indices = list(range(inflow_start, inflow_end))
 
-        distances = compute_batch_distances(inflow_batch, selected_outflows, inflow_model, outflow_model)
+        for outflow_start in range(0, num_outflows, B_outflow):
+            outflow_end = min(outflow_start + B_outflow, num_outflows)
+            outflow_batch = outflows[outflow_start:outflow_end]
+            outflow_indices = list(range(outflow_start, outflow_end))
 
-        for b in range(batch_size):
-            output_idx = idx * batch_size + b
-            output_array[output_idx, :92] = distances[b]
+            # Compute distances for the current batch of inflows against the current batch of outflows
+            distances = compute_batch_distances(inflow_batch, outflow_batch, inflow_model, outflow_model)  # shape (B_inflow, B_outflow, 92)
 
-            output_array[output_idx, -1] = int(idx == selected_outflow_indices[b])
+            # Now for each pair of inflow and outflow in the batches, store the distances
+            for i_inflow, inflow_idx in enumerate(inflow_indices):
+                for i_outflow, outflow_idx in enumerate(outflow_indices):
+                    output_idx = inflow_idx * num_outflows + outflow_idx
+                    output_array[output_idx, :92] = distances[i_inflow, i_outflow, :]  # The 92 distances
 
-            inflow_time = inflows[idx, 1, :]
-            inflow_dir = inflows[idx, 2, :]
-            inflow_sizes = inflows[idx, 0, :]
+                    # Set match to 1 if inflow and outflow have the same index
+                    output_array[output_idx, -1] = int(inflow_idx == outflow_idx)
 
-            outflow_time = outflows[selected_outflow_indices[b], 1, :]
-            outflow_dir = outflows[selected_outflow_indices[b], 2, :]
-            outflow_sizes = outflows[selected_outflow_indices[b], 0, :]
+                    # For calculate_proportions, get the inflow and outflow traces
+                    inflow_time = inflows[inflow_idx, 1, :]
+                    inflow_dir = inflows[inflow_idx, 2, :]
+                    inflow_sizes = inflows[inflow_idx, 0, :]
 
-            download_time_diff = calculate_proportions(outflow_time*outflow_dir, inflow_time*inflow_dir, outflow_sizes, inflow_sizes)
-            upload_time_diff = calculate_proportions(outflow_time*outflow_dir*-1, inflow_time*inflow_dir*-1, outflow_sizes, inflow_sizes)
+                    outflow_time = outflows[outflow_idx, 1, :]
+                    outflow_dir = outflows[outflow_idx, 2, :]
+                    outflow_sizes = outflows[outflow_idx, 0, :]
 
-            output_array[output_idx, 92:100] = download_time_diff
-            output_array[output_idx, 100:108] = upload_time_diff
+                    download_time_diff = calculate_proportions(outflow_time * outflow_dir, inflow_time * inflow_dir, outflow_sizes, inflow_sizes)
+                    upload_time_diff = calculate_proportions(outflow_time * outflow_dir * -1, inflow_time * inflow_dir * -1, outflow_sizes, inflow_sizes)
+
+                    output_array[output_idx, 92:100] = download_time_diff
+                    output_array[output_idx, 100:108] = upload_time_diff
 
     return output_array
 
+
 # Process and save the results
-val_output_array = process_data(val_inflows, val_outflows, val_output_array, args.batch_size)
+val_output_array = process_data(val_inflows, val_outflows, args.batch_size)
 np.save(args.output_val_path, val_output_array)
 
-test_output_array = process_data(test_inflows, test_outflows, test_output_array, args.batch_size)
+test_output_array = process_data(test_inflows, test_outflows, args.batch_size)
 np.save(args.output_test_path, test_output_array)
