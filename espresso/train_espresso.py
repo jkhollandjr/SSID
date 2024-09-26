@@ -203,42 +203,6 @@ class TripletDataset(Dataset):
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
 
-class FixedTripletDataset(Dataset):
-    def __init__(self, inflow_data, outflow_data):
-        self.inflow_data = inflow_data
-        self.outflow_data = outflow_data
-        self.triplets = []
-        self._precompute_triplets()
-
-    def _precompute_triplets(self):
-        # Generate all possible indices
-        all_indices = list(range(len(self.inflow_data)))
-        # For simplicity, we'll create a fixed number of triplets
-        num_triplets = len(self.inflow_data)
-        for _ in range(num_triplets):
-            anchor_idx = random.choice(all_indices)
-            # Ensure positive and anchor are the same
-            positive_idx = anchor_idx
-            # Choose a negative index different from the anchor
-            negative_idx = random.choice([idx for idx in all_indices if idx != anchor_idx])
-            self.triplets.append((anchor_idx, positive_idx, negative_idx))
-
-    def __len__(self):
-        return len(self.triplets)
-
-    def __getitem__(self, idx):
-        anchor_idx, positive_idx, negative_idx = self.triplets[idx]
-        anchor = self.inflow_data[anchor_idx]
-        positive = self.outflow_data[positive_idx]
-        negative = self.outflow_data[negative_idx]
-
-        return (
-            torch.tensor(anchor, dtype=torch.float32),
-            torch.tensor(positive, dtype=torch.float32),
-            torch.tensor(negative, dtype=torch.float32),
-        )
-
-
 class OnlineTripletDataset(Dataset):
     def __init__(self, inflow_data, outflow_data):
         self.positive_top = True
@@ -273,35 +237,6 @@ class OnlineTripletDataset(Dataset):
         cutoff = len(self.all_indices) // 2
         self.partition_1 = self.all_indices[:cutoff]
         self.partition_2 = self.all_indices[cutoff:]
-
-class FixedOnlineTripletDataset(Dataset):
-    def __init__(self, inflow_data, outflow_data):
-        self.inflow_data = inflow_data
-        self.outflow_data = outflow_data
-        self.embeddings = []
-        self.labels = []
-        self._precompute_embeddings()
-
-    def _precompute_embeddings(self):
-        # Assuming labels are indices for simplicity
-        for idx in range(len(self.inflow_data)):
-            anchor = self.inflow_data[idx]
-            positive = self.outflow_data[idx]
-            self.embeddings.append((anchor, positive))
-            self.labels.append(idx)  # Using the index as the label
-
-    def __len__(self):
-        return len(self.embeddings)
-
-    def __getitem__(self, idx):
-        anchor, positive = self.embeddings[idx]
-        label = self.labels[idx]
-        return (
-            torch.tensor(anchor, dtype=torch.float32),
-            torch.tensor(positive, dtype=torch.float32),
-            torch.tensor(label, dtype=torch.int64),
-        )
-
 
 class QuadrupleSampler(Sampler):
     """Sampler that repeats the dataset indices four times, effectively quadrupling the dataset size for each epoch."""
@@ -408,10 +343,10 @@ def main():
 
     # Define the datasets
     train_dataset_triplet = TripletDataset(train_inflows, train_outflows)
-    val_dataset_triplet = FixedTripletDataset(val_inflows, val_outflows)
+    val_dataset_triplet = TripletDataset(val_inflows, val_outflows)
 
     train_dataset_online = OnlineTripletDataset(train_inflows, train_outflows)
-    val_dataset_online = FixedOnlineTripletDataset(val_inflows, val_outflows)
+    val_dataset_online = OnlineTripletDataset(val_inflows, val_outflows)
 
     train_sampler_triplet = QuadrupleSampler(train_dataset_triplet)
     val_sampler_triplet = QuadrupleSampler(val_dataset_triplet)
