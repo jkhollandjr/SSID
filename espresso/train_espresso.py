@@ -322,12 +322,12 @@ def main():
         '--batch_size', type=int, default=100, help='Batch size for training and validation'
     )
     parser.add_argument(
-        '--num_epochs', type=int, default=120, help='Total number of epochs to train'
+        '--num_epochs', type=int, default=100, help='Total number of epochs to train'
     )
     parser.add_argument(
-        '--switch_loss_type', type=int, default=100, help='Switch from triplet loss to online hard triplet loss')
+        '--switch_loss_type', type=int, default=50, help='Switch from triplet loss to online hard triplet loss')
     parser.add_argument(
-        '--learning_rate', type=float, default=.001, help='Initial learning rate for the optimizer')
+        '--learning_rate', type=float, default=.0001, help='Initial learning rate for the optimizer')
     parser.add_argument(
         '--weight_decay', type=float, default=.001, help='Weight decay (L2 penalty) for the optimizer')
     parser.add_argument(
@@ -528,11 +528,11 @@ def main():
                 'outflow_model_state_dict': outflow_model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val_loss': best_val_loss,
-            }, 'models/epoch_{}.pth'.format(str(epoch)))
-        '''
+            }, 'models/epoch_hardloss_{}.pth'.format(str(epoch)))
         if epoch == args.switch_loss_type:
             best_val_loss = float("inf")
 
+        '''
         # Save the model if it's the best one so far
         if val_loss < best_val_loss:
             print("Best model so far!")
