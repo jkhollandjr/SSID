@@ -13,6 +13,7 @@ parser.add_argument('--val_data_path', type=str, default='data/val_output.npy', 
 parser.add_argument('--test_data_path', type=str, default='data/test_output.npy', help='Path to test data (numpy).')
 parser.add_argument('--batch_size', type=int, default=64, help='Batch size for DataLoader.')
 parser.add_argument('--num_epochs', type=int, default=50, help='Number of epochs for training.')
+parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay (L2 regularization).')
 args = parser.parse_args()
 
 # Load the data
@@ -20,6 +21,7 @@ val_data = np.load(args.val_data_path)
 test_data = np.load(args.test_data_path)
 
 cutoff = 108
+
 # Split the data into inputs and targets
 val_inputs = val_data[:, :cutoff]
 val_targets = val_data[:, -1]
@@ -41,7 +43,7 @@ class MyDataset(Dataset):
 train_dataset = MyDataset(val_inputs, val_targets)
 val_dataset = MyDataset(test_inputs, test_targets)
 
-# Create PyTorch dataloaders
+# Create PyTorch DataLoaders
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
@@ -60,14 +62,17 @@ class Predictor(nn.Module):
         x = torch.sigmoid(self.fc4(x))
         return x
 
-# Instantiate the model and move it to GPU if available
+# Instantiate the model and move it to the appropriate device (GPU/CPU)
 model = Predictor()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
-# Define the loss function and the optimizer
+# Define the loss function and the optimizer with weight decay
 criterion = nn.BCELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.00001)
+optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=args.weight_decay)
+
+best_val_loss = float('inf')
+best_model_state = None
 
 # Training loop
 for epoch in range(args.num_epochs):
@@ -79,7 +84,7 @@ for epoch in range(args.num_epochs):
         inputs, targets = inputs.to(device), targets.to(device)
 
         # Forward pass
-        outputs = model(inputs[:,:cutoff])
+        outputs = model(inputs[:, :cutoff])
         loss = criterion(outputs, targets.unsqueeze(1))
 
         # Backward pass and optimization
@@ -94,28 +99,29 @@ for epoch in range(args.num_epochs):
     # Validation
     model.eval()
     running_loss = 0.0
-    correct_predictions = 0
-    total_predictions = 0
     with torch.no_grad():
         for inputs, targets in val_loader:
             # Move tensors to the correct device
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Forward pass
-            outputs = model(inputs[:,:cutoff])
+            outputs = model(inputs[:, :cutoff])
             loss = criterion(outputs, targets.unsqueeze(1))
-
-            # Compute the number of correct predictions
-            preds = outputs >= 0.5
-            correct_predictions += (preds == targets.unsqueeze(1)).sum().item()
-            total_predictions += targets.size(0)
-
             running_loss += loss.item()
 
     val_loss = running_loss / len(val_loader)
-    val_accuracy = correct_predictions / total_predictions
 
-    print(f'Epoch {epoch+1}/{args.num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}')
+    # Save the best model
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
+        best_model_state = model.state_dict().copy()
+        print(f"New best model saved at epoch {epoch+1} with validation loss {val_loss:.4f}")
+
+    print(f'Epoch {epoch+1}/{args.num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}')
+
+# Load the best model for testing
+if best_model_state is not None:
+    model.load_state_dict(best_model_state)
 
 # Put the model in evaluation mode
 model.eval()
@@ -131,7 +137,7 @@ with torch.no_grad():
         inputs, targets = inputs.to(device), targets.to(device)
 
         # Forward pass
-        outputs = model(inputs[:,:cutoff]) #output is [64, 1]
+        outputs = model(inputs[:, :cutoff])  # Output is [64, 1]
 
         # Store the outputs and targets
         outputs_list.extend(outputs.cpu().numpy())
@@ -140,9 +146,10 @@ with torch.no_grad():
 # Compute the ROC curve
 fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=True)
 
-new = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
-thresholds = np.concatenate([new, thresholds])
-print(thresholds)
+# Add custom thresholds
+new_thresholds = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
+thresholds = np.concatenate([new_thresholds, thresholds])
+
 counter = 0
 for threshold in thresholds:
     counter += 1
@@ -169,9 +176,10 @@ for threshold in thresholds:
     print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
     print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
 
-tpr = [str(x) for x in list(tpr)]
-fpr = [str(x) for x in list(fpr)]
+# Convert TPR and FPR to string and print them
+tpr_str = ','.join([str(x) for x in tpr])
+fpr_str = ','.join([str(x) for x in fpr])
 
-print(','.join(tpr))
-print(','.join(fpr))
+print(tpr_str)
+print(fpr_str)
 

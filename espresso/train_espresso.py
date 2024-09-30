@@ -322,14 +322,14 @@ def main():
         '--batch_size', type=int, default=100, help='Batch size for training and validation'
     )
     parser.add_argument(
-        '--num_epochs', type=int, default=100, help='Total number of epochs to train'
+        '--num_epochs', type=int, default=250, help='Total number of epochs to train'
     )
     parser.add_argument(
-        '--switch_loss_type', type=int, default=50, help='Switch from triplet loss to online hard triplet loss')
+        '--switch_loss_type', type=int, default=0, help='Switch from triplet loss to online hard triplet loss')
     parser.add_argument(
         '--learning_rate', type=float, default=.0001, help='Initial learning rate for the optimizer')
     parser.add_argument(
-        '--weight_decay', type=float, default=.001, help='Weight decay (L2 penalty) for the optimizer')
+        '--weight_decay', type=float, default=.01, help='Weight decay (L2 penalty) for the optimizer')
     parser.add_argument(
         '--device', type=str, default='cuda', help='Device to use for training (e.g., "cuda" or "cpu")'
     )
@@ -432,7 +432,7 @@ def main():
     best_val_loss = float("inf")
     for epoch in range(num_epochs):
         if epoch < args.switch_loss_type:
-            criterion = TripletLoss(margin=0.1)
+            criterion = TripletLoss(margin=0.5)
             train_loader = train_loader_triplet
             val_loader = val_loader_triplet
             train_dataset_triplet.reset_split()
@@ -520,19 +520,9 @@ def main():
             f'Epoch {epoch + 1}/{num_epochs}, LR: {current_lr:.6f}, Train Loss: {train_loss:.7f}, Val Loss: {val_loss:.7f}'
         )
 
-        '''
-        torch.save(
-            {
-                'epoch': epoch,
-                'inflow_model_state_dict': inflow_model.state_dict(),
-                'outflow_model_state_dict': outflow_model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'best_val_loss': best_val_loss,
-            }, 'models/epoch_hardloss_{}.pth'.format(str(epoch)))
         if epoch == args.switch_loss_type:
             best_val_loss = float("inf")
 
-        '''
         # Save the model if it's the best one so far
         if val_loss < best_val_loss:
             print("Best model so far!")
