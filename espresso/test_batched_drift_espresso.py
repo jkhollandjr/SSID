@@ -14,7 +14,7 @@ parser.add_argument('--val_inflows_path', type=str, default='data/val_inflows.np
 parser.add_argument('--val_outflows_path', type=str, default='data/val_outflows.npy', help='Path to validation outflows file (numpy).')
 parser.add_argument('--output_val_path', type=str, default='data/val_output.npy', help='Path to save the validation output numpy file.')
 parser.add_argument('--output_test_path', type=str, default='data/test_output.npy', help='Path to save the test output numpy file.')
-parser.add_argument('--batch_size', type=int, default=256, help='Batch size for processing.')
+parser.add_argument('--batch_size', type=int, default=64, help='Batch size for processing.')
 args = parser.parse_args()
 
 model_config = {
@@ -61,7 +61,6 @@ model_config = {
 }
 
 # Instantiate the models
-embedding_size = 64
 inflow_model = EspressoNet(8, special_toks=1, **model_config)
 outflow_model = EspressoNet(8, special_toks=1, **model_config)
 
@@ -85,10 +84,6 @@ val_outflows = np.load(args.val_outflows_path)[:1000]
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
-
-# Initialize the outputs
-val_output_array = np.zeros((len(val_inflows) * len(val_outflows), 92))
-test_output_array = np.zeros((len(test_inflows) * len(test_outflows), 92))
 
 def compute_batch_distances(inflow_traces, outflow_traces, inflow_model, outflow_model):
     all_cosine_similarities = []
@@ -167,45 +162,66 @@ def calculate_proportions(trace1, trace2, sizes_trace1, sizes_trace2, thresholds
 
     return np.array(proportions)
 
-def process_data(inflows, outflows, output_array, batch_size):
-    num_inflows = len(inflows)
-    num_outflows = len(outflows)
+def process_data(inflows, outflows, batch_size):
+    inflows = inflows[:, 3:, :]
+    outflows = outflows[:, 3:, :]
 
-    output_array = np.zeros((num_inflows * batch_size, 109))
+    inflow_batches = [inflows[i:i + batch_size] for i in range(0, inflows.shape[0], batch_size)]
+    outflow_batches = [outflows[i:i + batch_size] for i in range(0, outflows.shape[0], batch_size)]
 
-    for idx, inflow_example in enumerate(inflows):
-        selected_outflow_indices = random.sample(range(num_outflows), batch_size)
-        selected_outflows = outflows[selected_outflow_indices]
+    with torch.no_grad():
+        # Process inflow batches
+        inflow_embeddings_list = []
+        for batch in inflow_batches:
+            inflow_batch = torch.from_numpy(batch).float().to(device)
+            inflow_embeddings, _ = outflow_model(inflow_batch)
+            inflow_embeddings = inflow_embeddings.reshape(-1, 92, 64)
+            inflow_embeddings_list.append(inflow_embeddings.cpu())
 
-        inflow_batch = np.repeat(inflow_example[np.newaxis, ...], batch_size, axis=0)
+        inflow_embeddings = torch.cat(inflow_embeddings_list, dim=0)  # Shape: [num_inflows, 92, 64]
 
-        distances = compute_batch_distances(inflow_batch, selected_outflows, inflow_model, outflow_model)
+        # Process outflow batches
+        outflow_embeddings_list = []
+        for batch in outflow_batches:
+            outflow_batch = torch.from_numpy(batch).float().to(device)
+            outflow_embeddings, _ = outflow_model(outflow_batch)
+            outflow_embeddings = outflow_embeddings.reshape(-1, 92, 64)
+            outflow_embeddings_list.append(outflow_embeddings.cpu())
 
-        for b in range(batch_size):
-            output_idx = idx * batch_size + b
-            output_array[output_idx, :92] = distances[b]
+        outflow_embeddings = torch.cat(outflow_embeddings_list, dim=0)  # Shape: [num_outflows, 92, 64]
 
-            output_array[output_idx, -1] = int(idx == selected_outflow_indices[b])
+        # Normalize embeddings
+        inflow_embeddings_norm = inflow_embeddings / inflow_embeddings.norm(dim=2, keepdim=True)
+        outflow_embeddings_norm = outflow_embeddings / outflow_embeddings.norm(dim=2, keepdim=True)
 
-            inflow_time = inflows[idx, 1, :]
-            inflow_dir = inflows[idx, 2, :]
-            inflow_sizes = inflows[idx, 0, :]
+        # Compute cosine similarities in batch
+        # Resulting shape: [num_inflows, num_outflows, 92]
+        similarities = torch.einsum('ikd,jkd->ijk', inflow_embeddings_norm, outflow_embeddings_norm)
 
-            outflow_time = outflows[selected_outflow_indices[b], 1, :]
-            outflow_dir = outflows[selected_outflow_indices[b], 2, :]
-            outflow_sizes = outflows[selected_outflow_indices[b], 0, :]
+        # Flatten similarities to shape: [num_inflows * num_outflows, 92]
+        similarities_flat = similarities.reshape(-1, 92)
 
-            download_time_diff = calculate_proportions(outflow_time*outflow_dir, inflow_time*inflow_dir, outflow_sizes, inflow_sizes)
-            upload_time_diff = calculate_proportions(outflow_time*outflow_dir*-1, inflow_time*inflow_dir*-1, outflow_sizes, inflow_sizes)
+        # Create indicator for i == j
+        num_inflows = inflow_embeddings.shape[0]
+        num_outflows = outflow_embeddings.shape[0]
+        inflow_indices = torch.arange(num_inflows).unsqueeze(1)
+        outflow_indices = torch.arange(num_outflows).unsqueeze(0)
+        indicator = (inflow_indices == outflow_indices).float().reshape(-1)
 
-            output_array[output_idx, 92:100] = download_time_diff
-            output_array[output_idx, 100:108] = upload_time_diff
+        # Prepare the output array
+        output_array = torch.zeros((num_inflows * num_outflows, 109))
+        output_array[:, :92] = similarities_flat
+        output_array[:, -1] = indicator
 
-    return output_array
+        print(output_array[0])
+
+    return output_array.numpy()
+    
 
 # Process and save the results
-val_output_array = process_data(val_inflows, val_outflows, val_output_array, args.batch_size)
+val_output_array = process_data(val_inflows, val_outflows, args.batch_size)
 np.save(args.output_val_path, val_output_array)
 
-test_output_array = process_data(test_inflows, test_outflows, test_output_array, args.batch_size)
+test_output_array = process_data(test_inflows, test_outflows, args.batch_size)
 np.save(args.output_test_path, test_output_array)
+

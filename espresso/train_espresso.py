@@ -319,10 +319,10 @@ def main():
         help='Path to save the best model',
     )
     parser.add_argument(
-        '--batch_size', type=int, default=100, help='Batch size for training and validation'
+        '--batch_size', type=int, default=128, help='Batch size for training and validation'
     )
     parser.add_argument(
-        '--num_epochs', type=int, default=250, help='Total number of epochs to train'
+        '--num_epochs', type=int, default=100, help='Total number of epochs to train'
     )
     parser.add_argument(
         '--switch_loss_type', type=int, default=0, help='Switch from triplet loss to online hard triplet loss')
