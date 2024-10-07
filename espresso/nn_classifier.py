@@ -6,6 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import argparse
+import matplotlib.pyplot as plt
 
 # Argument parser for command-line inputs
 parser = argparse.ArgumentParser(description="Train and evaluate a predictor model.")
@@ -137,49 +138,26 @@ with torch.no_grad():
         inputs, targets = inputs.to(device), targets.to(device)
 
         # Forward pass
-        outputs = model(inputs[:, :cutoff])  # Output is [64, 1]
+        outputs = model(inputs[:, :cutoff])  # Output is [batch_size, 1]
 
         # Store the outputs and targets
         outputs_list.extend(outputs.cpu().numpy())
         targets_list.extend(targets.cpu().numpy())
 
-# Compute the ROC curve
-fpr, tpr, thresholds = roc_curve(targets_list, outputs_list, drop_intermediate=True)
+# Compute the ROC curve with fewer points
+fpr, tpr, thresholds = roc_curve(targets_list, outputs_list)
+sampled_indices = np.linspace(0, len(thresholds) - 1, num=2000, dtype=int)  # Choose 20 points along the ROC curve
+fpr_sampled = fpr[sampled_indices]
+tpr_sampled = tpr[sampled_indices]
 
-# Add custom thresholds
-new_thresholds = np.array([.8, .7, .6, .5, .4, .3, .2, .1])
-thresholds = np.concatenate([new_thresholds, thresholds])
-
-counter = 0
-for threshold in thresholds:
-    counter += 1
-    if counter == 110:
-        continue
-    # Convert the probabilities to binary outputs
-    preds = (np.array(outputs_list) >= threshold).astype(int)
-
-    # Compute the confusion matrix
-    cm = confusion_matrix(targets_list, preds)
-
-    TN = cm[0][0]
-    FP = cm[0][1]
-    FN = cm[1][0]
-    TP = cm[1][1]
-
-    # Calculate the rates
-    TPR = TP / (TP + FN)
-    FPR = FP / (FP + TN)
-    TNR = TN / (TN + FP)
-    FNR = FN / (TP + FN)
-
-    print(f"Threshold: {threshold:.7f}")
-    print(f"True Positives: {TP}, True Negatives: {TN}, False Positives: {FP}, False Negatives: {FN}")
-    print(f"True Positive Rate: {TPR:.7f}, False Positive Rate: {FPR:.7f}, True Negative Rate: {TNR:.7f}, False Negative Rate: {FNR:.7f}\n")
-
-# Convert TPR and FPR to string and print them
-tpr_str = ','.join([str(x) for x in tpr])
-fpr_str = ','.join([str(x) for x in fpr])
-
-print(tpr_str)
-print(fpr_str)
+# Plot FPR vs. TPR
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_sampled, tpr_sampled, marker='', linestyle='-', color='b', label="ROC Curve")
+plt.xscale('log')
+plt.xlabel("False Positive Rate (FPR)")
+plt.ylabel("True Positive Rate (TPR)")
+plt.title("FPR vs TPR (ROC Curve)")
+plt.legend()
+plt.grid()
+plt.show()
 

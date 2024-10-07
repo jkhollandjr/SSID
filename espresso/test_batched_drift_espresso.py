@@ -79,8 +79,8 @@ inflow_model.eval()
 outflow_model.eval()
 
 # Load the numpy arrays
-val_inflows = np.load(args.val_inflows_path)[:1000]
-val_outflows = np.load(args.val_outflows_path)[:1000]
+val_inflows = np.load(args.val_inflows_path)
+val_outflows = np.load(args.val_outflows_path)
 
 # Split the data
 val_inflows, test_inflows, val_outflows, test_outflows = train_test_split(val_inflows, val_outflows, test_size=0.5, random_state=42)
@@ -217,11 +217,48 @@ def process_data(inflows, outflows, batch_size):
 
     return output_array.numpy()
     
+def adjust_ratio(output_array, ratio=256):
+    """
+    Adjusts the ratio of matched to unmatched pairs in the output array.
+
+    Parameters:
+    - output_array: numpy array from process_data, with the last column being the indicator variable.
+    - ratio: float, desired ratio of unmatched to matched pairs (e.g., ratio=1 means 1:1).
+
+    Returns:
+    - adjusted_array: numpy array with the desired ratio.
+    """
+    # Separate matched and unmatched pairs
+    matched = output_array[output_array[:, -1] == 1]
+    unmatched = output_array[output_array[:, -1] == 0]
+
+    num_matched = matched.shape[0]
+    num_unmatched_desired = int(num_matched * ratio)
+
+    # Check if there are enough unmatched samples
+    if num_unmatched_desired > unmatched.shape[0]:
+        print("Warning: Not enough unmatched pairs to achieve the desired ratio.")
+        num_unmatched_desired = unmatched.shape[0]
+
+    # Randomly sample unmatched pairs
+    if num_unmatched_desired > 0:
+        indices = np.random.choice(unmatched.shape[0], num_unmatched_desired, replace=False)
+        unmatched_sampled = unmatched[indices]
+    else:
+        unmatched_sampled = np.empty((0, output_array.shape[1]))
+
+    # Concatenate matched and sampled unmatched pairs
+    adjusted_array = np.concatenate([matched, unmatched_sampled], axis=0)
+
+    # Shuffle the array
+    np.random.shuffle(adjusted_array)
+
+    return adjusted_array
 
 # Process and save the results
-val_output_array = process_data(val_inflows, val_outflows, args.batch_size)
+val_output_array = adjust_ratio(process_data(val_inflows, val_outflows, args.batch_size))
+print(val_output_array.shape)
 np.save(args.output_val_path, val_output_array)
 
-test_output_array = process_data(test_inflows, test_outflows, args.batch_size)
+test_output_array = adjust_ratio(process_data(test_inflows, test_outflows, args.batch_size))
 np.save(args.output_test_path, test_output_array)
-
